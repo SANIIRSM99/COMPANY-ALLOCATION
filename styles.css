@@ -1,0 +1,546 @@
+body {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+.bg-primary {
+  background-color: #0d9488; /* Teal for primary elements */
+}
+
+.bg-secondary {
+  background-color: #e0f2fe; /* Light teal for table headers */
+}
+
+/* Table styling */
+.customer-table {
+  margin-bottom: 1rem;
+  overflow-x: auto;
+  max-width: 100%; /* Ensure table fits within viewport */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+.customer-table table {
+  width: 100%; /* Force table to fit container */
+  border-collapse: collapse;
+}
+
+.customer-table th,
+.customer-table td {
+  border: 1px solid #d1d5db;
+  padding: 0.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  white-space: nowrap; /* Default to nowrap, overridden for mobile */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0; /* Allow columns to shrink */
+}
+
+.customer-table th {
+  position: sticky;
+  top: 0;
+  background-color: #e0f2fe;
+  z-index: 20;
+}
+
+.scrollable-table {
+  overflow: auto;
+  max-height: 40vh; /* Adjusted for mobile */
+  max-width: 100%; /* Fit viewport */
+  border: 1px solid #e6e6e6;
+  border-radius: 6px;
+  padding: 4px;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 767px) {
+  body {
+    font-size: 12px; /* Slightly smaller font for mobile */
+  }
+
+  .customer-table th,
+  .customer-table td {
+    padding: 0.3rem; /* Reduced padding for mobile */
+    font-size: 0.65rem; /* Smaller font for mobile */
+    white-space: normal; /* Allow text wrapping */
+    word-wrap: break-word; /* Break long words */
+    min-width: 60px; /* Slightly smaller min-width */
+    max-width: 120px; /* Cap column width to prevent overflow */
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .customer-table {
+    max-width: 100%; /* Reinforce viewport constraint */
+    overflow-x: auto; /* Ensure horizontal scrolling */
+  }
+
+  .scrollable-table {
+    max-height: 35vh; /* Slightly shorter for mobile */
+    max-width: 100%; /* Fit viewport */
+  }
+
+  .content-container {
+    padding: 0.75rem; /* Reduced padding for mobile */
+  }
+
+  #sidebar {
+    width: 85vw; /* Wider sidebar for better mobile usability */
+  }
+
+  button {
+    padding: 0.6rem 0.8rem; /* Slightly larger touch targets */
+  }
+
+  input, select {
+    padding: 0.6rem; /* Larger touch targets for inputs */
+    font-size: 0.85rem;
+  }
+}
+
+/* Desktop adjustments */
+@media (min-width: 768px) {
+  body {
+    font-size: 16px;
+  }
+
+  .customer-table th,
+  .customer-table td {
+    padding: 0.75rem;
+    font-size: 1rem;
+    white-space: normal; /* Allow text to wrap on desktop */
+    word-wrap: break-word; /* Ensure long words break */
+    min-width: 80px; /* Maintain alignment */
+  }
+
+  #sidebar {
+    position: sticky;
+    top: 0;
+    width: 260px;
+    transform: none;
+  }
+
+  .content-container {
+    margin-left: 260px;
+    padding: 1.5rem;
+  }
+
+  #hamburgerContainer {
+    display: none;
+  }
+}
+
+.overflow-x-auto::-webkit-scrollbar {
+  height: 8px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background-color: #9ca3af;
+  border-radius: 4px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+}
+
+.overflow-y-auto::-webkit-scrollbar {
+  width: 8px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background-color: #9ca3af;
+  border-radius: 4px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+}
+
+/* Sidebar styling with improved responsiveness */
+#sidebar.hidden {
+  display: none;
+}
+
+#sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 80vw; /* Slightly wider for better usability */
+  max-width: 300px; /* Cap width for larger phones */
+  height: 100%;
+  transition: transform 0.3s ease-in-out;
+  z-index: 50;
+
+  /* Stylish Gradient Background */
+  background: linear-gradient(180deg, #0a0f2c 0%, #1a2a6c 50%, #4b0000 100%);
+  color: #f1f5f9;
+
+  /* Border & Shadow */
+  border-right: 1px solid rgba(255,255,255,0.15);
+  padding: 16px;
+  box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+
+  transform: translateX(-100%);
+  touch-action: manipulation; /* Improve touch responsiveness */
+}
+
+
+#sidebar:not(.hidden) {
+  transform: translateX(0);
+}
+
+#sidebar button, #sidebar .nav-item {
+  cursor: pointer;
+  padding: 10px 12px; /* Slightly larger padding for touch */
+  border-radius: 6px;
+  width: 100%;
+  text-align: left;
+  font-size: 0.875rem;
+  touch-action: manipulation; /* Improve touch responsiveness */
+  -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
+}
+
+#sidebar .nav-item:hover, #sidebar .nav-item:active {
+  background: #f5f7fb;
+}
+
+#sidebar .user-name {
+  font-weight: 700;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.content-container {
+  padding: 1rem;
+  z-index: 10;
+}
+
+#hamburgerContainer {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 60;
+}
+
+#hamburger {
+  font-size: 1.5rem;
+  padding: 0.75rem; /* Larger touch target */
+  touch-action: manipulation; /* Improve touch responsiveness */
+  -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
+}
+
+/* Ensure sidebar is visible and interactive on desktop */
+@media (min-width: 768px) {
+  #sidebar.md\:block {
+    display: block !important;
+  }
+}
+
+/* Position customer suggestions above the input */
+#customerSuggestions {
+  bottom: 100%;
+  margin-bottom: 0.25rem;
+  width: 100%;
+  max-height: 30vh;
+  overflow-y: auto;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  z-index: 100;
+}
+
+/* Keep item suggestions below the input */
+#itemSuggestions {
+  top: 100%;
+  margin-top: 0.25rem;
+  width: 100%;
+  max-height: 30vh;
+  overflow-y: auto;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  z-index: 100;
+}
+
+/* Position customer search suggestions below the input */
+#customerSearchSuggestions {
+  top: 100%;
+  margin-top: 0.25rem;
+  width: 100%;
+  max-height: 30vh;
+  overflow-y: auto;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  z-index: 100;
+}
+
+/* Inputs */
+input, select {
+  width: 100%;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+/* General Button Style */
+button {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.25s ease-in-out;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Primary Button (Confirm) */
+button.confirm {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: #fff;
+}
+button.confirm:hover {
+  background: linear-gradient(135deg, #20c997, #28a745);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
+}
+button.confirm:active {
+  transform: scale(0.95);
+}
+
+/* Secondary Button (Cancel) */
+button.cancel {
+  background: linear-gradient(135deg, #dc3545, #f87171);
+  color: #fff;
+}
+button.cancel:hover {
+  background: linear-gradient(135deg, #f87171, #dc3545);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(220, 53, 69, 0.4);
+}
+button.cancel:a
+
+
+/* Modals */
+dialog {
+  width: 90vw;
+  max-width: 400px;
+  padding: 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+/* Remove injected styles as they are redundant */
+#allocationPage {
+  padding: 0; /* Remove padding if present */
+  width: fit-content; /* Allow container to fit content */
+}
+
+.resizable-box {
+  resize: both;
+  overflow: auto;
+  border: 2px solid #4b5563;
+  border-radius: 10px;
+  padding: 10px;
+  background: #f9fafb;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  min-width: 300px;
+  min-height: 200px;
+}
+.scrollable-table {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* Resizable box around the invoice table */
+.resizable-box {
+  resize: both;
+  overflow: auto;
+  border: 2px solid #4b5563;
+  border-radius: 12px;
+  padding: 10px;
+  background: #f9fafb;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  min-width: 400px;
+  min-height: 500px;
+  margin-top: 15px;
+}
+
+/* Table scroll area */
+.scrollable-table {
+  max-height: 500px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+
+/* Invoice Table */
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.invoice-table th {
+  background: #374151;
+  color: white;
+  padding: 8px;
+  text-align: center;
+}
+
+.invoice-table td {
+  border: 1px solid #ddd;
+  padding: 6px;
+  text-align: center;
+}
+
+.invoice-table tr:hover {
+  background: #f3f4f6;
+  transition: 0.2s;
+}
+
+/* Overall Performance Box */
+.overall-performance-box {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: linear-gradient(to right, #dbeafe, #e0e7ff);
+  color: #1e3a8a;
+  font-weight: bold;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.summaryCard {
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  font-weight: bold;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.summaryCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+#resetAppModal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    z-index: 9999;
+    background: linear-gradient(145deg, #ffffff, #f9f9f9);
+    padding: 25px 30px;
+    border-radius: 16px;
+    box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.25);
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    font-family: "Segoe UI", sans-serif;
+    transition: all 0.3s ease-in-out;
+    animation: popupScale 0.3s ease-out;
+}
+
+@keyframes popupScale {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.7);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(4px); /* blur effect */
+    z-index: 9998;
+}
+
+.nav-btn {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: 0.2s;
+}
+
+.nav-btn:hover { filter: brightness(90%); }
+
+/* ✅ Active state */
+.active-nav {
+  outline: 3px solid white;
+  filter: brightness(110%);
+}
+
+
+@keyframes scaleIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.animate-scaleIn {
+  animation: scaleIn 0.3s ease-out;
+}
+
+
+
+<!-- Popup Animation -->
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+</style>
+
+<!-- Popup Animation -->
+<style>
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+
+.version-badge h4{
+  display:inline-block;
+  margin:0;
+  padding:12px 26px;
+  border-radius:999px;
+  font-weight:700;
+  font-size:13px;
+  font-family: Inter, system-ui, Arial;
+  color: #0f1724;
+  background: linear-gradient(180deg,#ffd57a 0%, #ff9a5b 100%);
+  box-shadow: 0 6px 18px rgba(255,154,91,0.18);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+#adminUserSelector {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+}
+#syncSelectedUserBtn {
+    min-width: 140px;
+}

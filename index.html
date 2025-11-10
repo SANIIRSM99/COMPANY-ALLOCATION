@@ -1,0 +1,854 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ND ITEM TARGET</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gray-100">
+  <!-- Unlock Section -->
+  <div id="codeSection" class="hidden fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-white p-6 rounded-2xl shadow-xl w-80 max-w-[90%]">
+    <div class="text-center">
+        <h2 class="text-lg font-bold mb-4 text-gray-800">🔒 App Locked</h2>
+        
+        <p class="mb-2 text-gray-700">Code: <span id="displayCode" class="font-mono text-blue-600"></span></p>
+        
+        <input id="unlockCode" type="text" placeholder="Enter Unlock Code" 
+               class="border border-gray-300 focus:border-blue-400 focus:ring focus:ring-blue-200 outline-none p-2 w-full mb-2 rounded">
+        
+        <p id="codeError" class="hidden text-red-500 mb-2">❌ Invalid Code!</p>
+        
+        <button onclick="unlockApp()" 
+                class="bg-blue-500 text-white w-full p-2 rounded-lg hover:bg-blue-600 transition duration-300 shadow-md">
+            ✅ Unlock
+        </button>
+        
+        <!-- Call Me Option -->
+        <div class="mt-4 text-sm text-gray-600">
+            Forgot code? <br>
+            <a href="tel:+923117323373" 
+               class="inline-block mt-2 bg-green-500 text-white px-4 py-2 rounded-full shadow hover:bg-green-600 transition duration-300">
+               📞 Call Me: 0311-7323373
+            </a>
+        </div>
+    </div>
+</div>
+
+
+  <!-- Login Section -->
+  <div id="loginPage" class="min-h-screen flex items-center justify-center bg-gradient-to-r from-teal-400 via-blue-500 to-indigo-600">
+  <div class="bg-white/30 backdrop-blur-lg p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white/20">
+    <h2 class="text-3xl font-extrabold mb-6 text-center text-white drop-shadow-lg">Welcome Back</h2>
+    
+    <!-- Username -->
+    <div class="mb-4">
+      <input 
+        id="username" 
+        type="text" 
+        class="w-full p-3 rounded-lg border border-white/30 bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-teal-300" 
+        placeholder="Username">
+    </div>
+    
+    <!-- Password -->
+    <div class="mb-4">
+      <input 
+        id="password" 
+        type="password" 
+        class="w-full p-3 rounded-lg border border-white/30 bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-teal-300" 
+        placeholder="Password">
+      <p id="loginError" class="text-red-300 text-sm mt-2 hidden">Invalid credentials!</p>
+    </div>
+    
+    <!-- Button -->
+    <button 
+  onclick="login()" 
+  class="w-full bg-red-500 hover:bg-red-600 text-white p-3 rounded-lg font-semibold shadow-md transition duration-300">
+  Login
+</button>
+
+  </div>
+</div>
+
+
+  <!-- Main Page -->
+  <div id="mainPage" class="hidden">
+    <div class="main-with-sidebar">
+      <!-- Sidebar -->
+      <div id="sidebar" 
+  class="sidebar-gmail fixed inset-y-0 left-0 transform -translate-x-full md:transform-none md:static hidden md:block w-64 
+  bg-gradient-to-b from-[#0f2027] via-[#203a43] to-[#2c5364] text-gray-200 shadow-2xl transition-transform duration-300">
+  
+  <div class="p-6">
+    
+    <!-- User -->
+    <div class="mb-6">
+      <span class="user-name block text-lg font-semibold text-cyan-200 bg-black/30 rounded-lg px-3 py-2 text-center shadow-md" id="loggedUserName">User</span>
+    </div>
+
+    <!-- Company Name -->
+    <h2 class="text-xl font-extrabold mb-6 text-center tracking-wide text-amber-300 drop-shadow-lg">NOOR DISTRIBUTOR</h2>
+
+    <!-- Navigation -->
+<nav class="space-y-2">
+  <button id="navInvoiceEntry" class="nav-btn bg-teal-500">🏠 HOME</button>
+  <button id="navAllocation" class="nav-btn bg-indigo-500">📦 Allocation</button>
+  <button id="navDoneTargets" class="nav-btn bg-purple-500">🎯 Done Targets</button>
+  <button id="navBonus" class="nav-btn bg-emerald-500">✅ Bonus Deal</button>
+
+  <button id="navMySale" class="nav-btn bg-yellow-400 flex items-center gap-2">
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M16 11V7a4 4 0 00-8 0v4m12 4H4a2 2 0 002 2h12a2 2 0 002-2z" />
+  </svg>
+  My Sale
+</button>
+
+
+  <button id="navLogout" class="nav-btn bg-red-500">🚪 Logout</button>
+</nav>
+
+  </div>
+</div>
+
+
+      <!-- Content Area -->
+       <div class="content-area p-4">
+        <div id="hamburgerContainer" class="md:hidden mb-4">
+          <button id="hamburger" class="text-2xl">☰</button>
+        </div>
+
+        <!-- Invoice Entry -->
+        <div id="invoiceEntry" class="">
+  <div class="bg-white p-6 rounded-xl shadow-lg mb-6 border border-gray-200 hover:shadow-2xl transition">
+<!-- Heading -->
+    <h2 class="text-2xl font-bold mb-6 text-blue-600 flex items-center gap-2">
+      🧾 ALLOCATION DETAILS
+    </h2> <div class="version-badge">
+  <h4><b>V</b>.6.0.1.9</h4>
+</div></div>
+    <!-- Breaking News Top -->
+<div id="breakingNews" 
+    class="overflow-hidden whitespace-nowrap h-7 font-bold text-xs sm:text-sm rounded shadow 
+           bg-gradient-to-r from-yellow-200 via-red-200 to-yellow-200 border border-red-400 mb-1">
+    <marquee behavior="scroll" direction="left" scrollamount="3">
+        🚨 Sample Customer [C001] 🚨 Sample Customer [C002] 🚨 Sample Customer [C003]
+    </marquee>
+</div>
+<div id="dashboardContainer"></div>
+
+<script>
+document.getElementById("dashboardContainer").innerHTML = `
+   <!-- Header -->
+  <div class="bg-gradient-to-r from-indigo-600 via-blue-500 to-indigo-600 text-white text-lg sm:text-xl font-bold p-4 rounded-t-xl text-center shadow-2xl tracking-wide">
+    📊 Professional Dashboard
+</div>
+
+<div id="summaryBox" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-b-2xl shadow-xl">
+
+    <!-- Total Customers -->
+    <div id="totalCustomersBox" class="group relative p-4 rounded-2xl 
+    shadow-[8px_8px_16px_rgba(0,0,0,0.25),-8px_-8px_16px_rgba(255,255,255,0.9)]
+    bg-gradient-to-br from-blue-200 via-blue-300 to-blue-400 
+    text-white text-center transition transform hover:-translate-y-1 hover:scale-105 overflow-hidden">
+    <span class="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition"></span>
+    <h3 class="text-xs sm:text-sm font-bold drop-shadow-md">👥 Total Customers</h3>
+    <div class="text-lg sm:text-xl font-extrabold mt-2 drop-shadow-md">0</div>
+</div>
+
+
+    <!-- Non Productive -->
+    <div id="nonProductiveBox" class="group relative p-4 rounded-2xl shadow-[6px_6px_12px_rgba(0,0,0,0.2),-6px_-6px_12px_rgba(255,255,255,0.7)]
+         bg-gradient-to-br from-red-50 to-red-100 text-red-700 text-center transition transform hover:-translate-y-1 hover:scale-105 hover:shadow-[8px_8px_16px_rgba(0,0,0,0.25),-8px_-8px_16px_rgba(255,255,255,0.9)] overflow-hidden">
+        <span class="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent opacity-0 group-hover:opacity-100 transition"></span>
+        <h3 class="text-xs sm:text-sm font-bold">🚫 Non-Productive</h3>
+        <div class="text-lg sm:text-xl font-extrabold mt-2">0</div>
+    </div>
+
+    <!-- In Progress -->
+    <div id="progressBox" class="group relative p-4 rounded-2xl shadow-[6px_6px_12px_rgba(0,0,0,0.2),-6px_-6px_12px_rgba(255,255,255,0.7)]
+         bg-gradient-to-br from-yellow-50 to-yellow-100 text-yellow-700 text-center transition transform hover:-translate-y-1 hover:scale-105 hover:shadow-[8px_8px_16px_rgba(0,0,0,0.25),-8px_-8px_16px_rgba(255,255,255,0.9)] overflow-hidden">
+        <span class="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent opacity-0 group-hover:opacity-100 transition"></span>
+        <h3 class="text-xs sm:text-sm font-bold">⏳ In Progress</h3>
+        <div class="text-lg sm:text-xl font-extrabold mt-2">0</div>
+    </div>
+
+    <!-- Completed -->
+    <div id="completedBox" class="group relative p-4 rounded-2xl shadow-[6px_6px_12px_rgba(0,0,0,0.2),-6px_-6px_12px_rgba(255,255,255,0.7)]
+         bg-gradient-to-br from-green-50 to-green-100 text-green-700 text-center transition transform hover:-translate-y-1 hover:scale-105 hover:shadow-[8px_8px_16px_rgba(0,0,0,0.25),-8px_-8px_16px_rgba(255,255,255,0.9)] overflow-hidden">
+        <span class="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent opacity-0 group-hover:opacity-100 transition"></span>
+        <h3 class="text-xs sm:text-sm font-bold">✅ Completed</h3>
+        <div class="text-lg sm:text-xl font-extrabold mt-2">0</div>
+    </div>
+
+    <!-- Overall % -->
+    <div id="overallBox" class="group relative p-4 rounded-2xl shadow-[6px_6px_12px_rgba(0,0,0,0.2),-6px_-6px_12px_rgba(255,255,255,0.7)]
+         bg-gradient-to-br from-indigo-50 to-indigo-100 text-indigo-700 text-center transition transform hover:-translate-y-1 hover:scale-105 hover:shadow-[8px_8px_16px_rgba(0,0,0,0.25),-8px_-8px_16px_rgba(255,255,255,0.9)] overflow-hidden">
+        <span class="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent opacity-0 group-hover:opacity-100 transition"></span>
+        <h3 class="text-xs sm:text-sm font-bold">📈 Overall %</h3>
+        <div class="text-lg sm:text-xl font-extrabold mt-2">0%</div>
+    </div>
+
+    <!-- Total Value -->
+    <div id="totalValueBox" class="group relative p-4 rounded-2xl 
+    shadow-[6px_6px_12px_rgba(0,0,0,0.2),-6px_-6px_12px_rgba(255,255,255,0.7)]
+    bg-gradient-to-br from-yellow-100 via-orange-200 to-yellow-300 
+    text-brown-700 text-center transition transform hover:-translate-y-1 hover:scale-105 
+    hover:shadow-[8px_8px_16px_rgba(0,0,0,0.25),-8px_-8px_16px_rgba(255,255,255,0.9)] overflow-hidden">
+    <span class="absolute inset-0 bg-gradient-to-br from-white/30 to-transparent opacity-0 group-hover:opacity-100 transition"></span>
+    <h3 class="text-xs sm:text-sm font-bold">💰 Total Value</h3>
+    <div class="text-lg sm:text-xl font-extrabold mt-2">0</div>
+</div>
+
+   </div>
+`;
+</script>
+
+
+    
+
+  <!-- Button Group: Centered & Stylish -->
+<div class="flex flex-wrap justify-center items-center gap-4 mt-6">
+  <!-- Add Allocation -->
+  <button 
+    onclick="openPopup()" 
+    class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 
+           text-white font-semibold px-7 py-3 rounded-2xl shadow-lg transition-all duration-300 
+           transform hover:scale-110 hover:shadow-2xl">
+    ➕ Add Allocation
+  </button>
+
+  <!-- Sync Data -->
+  <button 
+    id="syncBtn" 
+    onclick="syncSelectedUser()" 
+    class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 
+           text-white font-semibold px-7 py-3 rounded-2xl shadow-lg transition-all duration-300 
+           transform hover:scale-110 hover:shadow-2xl">
+    🔄 Sync Data
+  </button>
+
+  <!-- Reset Excel -->
+  <button 
+    onclick="showResetExcelModal()" 
+    class="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 
+           text-white font-semibold px-7 py-3 rounded-2xl shadow-lg transition-all duration-300 
+           transform hover:scale-110 hover:shadow-2xl">
+    🗑 Reset Excel
+  </button>
+
+  <!-- Reset App -->
+  <button 
+    onclick="showResetAppModal()" 
+    class="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 
+           text-white font-semibold px-7 py-3 rounded-2xl shadow-lg transition-all duration-300 
+           transform hover:scale-110 hover:shadow-2xl">
+    🔄 Reset App
+  </button>
+</div>
+
+    <!-- Error Message -->
+<!-- ===============================
+     ADMIN Sync Panel
+     =============================== -->
+<div id="adminSyncPanel" style="display:none; margin: 10px 0; background:#f9f9f9; padding:10px; border-radius:10px; box-shadow:0 0 5px rgba(0,0,0,0.1);">
+  <h3 style="margin-bottom:8px; font-size:18px;">🔐 Admin Panel</h3>
+  
+  <label for="userSelect" style="font-weight:bold;">Select User:</label>
+  <select id="userSelect" style="padding:6px 10px; border-radius:6px; margin-right:8px; border:1px solid #ccc;">
+    <option value="">-- Choose User --</option>
+    <option value="ASIF">ASIF</option>
+     <option value="KHALID">KHALID</option>
+    <option value="JAVAID">JAVAID</option>
+    <option value="MURTAZA">MURTAZA</option>
+    <option value="AMRANJNG">AMRANJNG</option>
+    <option value="FAROOQ">FAROOQ</option>
+    <option value="ADMIN">ADMIN</option>
+  </select>
+
+ 
+</div>
+
+<script>
+  // 👇 Show admin panel only for ADMIN login
+  document.addEventListener("DOMContentLoaded", function() {
+    const currentUser = (getLoggedUser() || '').toString().trim().toUpperCase();
+    const panel = document.getElementById('adminSyncPanel');
+    if (currentUser === 'ADMIN' && panel) {
+      panel.style.display = 'block';
+    }
+  });
+</script>
+
+<!-- Popup Modal -->
+<div 
+  id="formPopup" 
+  class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center hidden z-50 transition-opacity duration-300">
+  
+  <div 
+    class="bg-gradient-to-br from-white to-blue-50 rounded-3xl shadow-2xl w-11/12 max-w-2xl p-8 relative animate-scaleIn overflow-y-auto max-h-[90vh] border border-blue-100">
+    
+    <!-- Close Button -->
+    <button 
+      onclick="closePopup()" 
+      class="absolute top-4 right-4 text-gray-500 hover:text-red-600 text-3xl font-extrabold transition-transform hover:scale-110">
+      &times;
+    </button>
+
+    <h2 class="text-2xl font-extrabold mb-6 text-center text-blue-700 tracking-wide drop-shadow-sm">
+      🧾 Add Customer Invoice
+    </h2>
+
+    <!-- Form Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      
+      <!-- City -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">City</label>
+        <input 
+          id="city" 
+          type="text" 
+          class="w-full p-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 shadow-inner cursor-not-allowed focus:outline-none"
+          readonly>
+      </div>
+
+      <!-- Customer -->
+      <div class="relative">
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Customer</label>
+        <input 
+          id="customer" 
+          type="text" 
+          placeholder="🔍 Search customer"
+          class="w-full p-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-500 transition shadow-sm"
+        >
+        <div 
+          id="customerSuggestions" 
+          class="absolute w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden z-50 mt-1 max-h-48 overflow-y-auto"
+        ></div>
+      </div>
+
+      <!-- Item -->
+      <div class="relative">
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Item</label>
+        <input 
+          id="item" 
+          type="text" 
+          placeholder="📦 Search item"
+          class="w-full p-3 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-400 focus:border-green-500 transition shadow-sm"
+        >
+        <div 
+          id="itemSuggestions" 
+          class="absolute w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden mt-1 max-h-48 overflow-y-auto"
+        ></div>
+      </div>
+
+      <!-- Target -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Target</label>
+        <input 
+          id="target" 
+          type="text" 
+          class="w-full p-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed shadow-inner"
+          readonly
+        >
+      </div>
+
+      <!-- Add Quantity -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Add Quantity</label>
+        <input 
+          id="quantity" 
+          type="number" 
+          min="0"
+          class="w-full p-3 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-500 transition shadow-sm"
+        >
+      </div>
+
+      <!-- Remaining -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Remaining</label>
+        <input 
+          id="remaining" 
+          type="text" 
+          class="w-full p-3 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed shadow-inner"
+          readonly
+        >
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="mt-8 flex flex-wrap gap-4 justify-center">
+      <button  
+        onclick="addInvoice()" 
+        class="bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg transition-all duration-300 transform hover:scale-105"
+      >
+        ➕ Add Invoice
+      </button>
+
+      <button 
+        onclick="resetForm()" 
+        class="bg-gradient-to-r from-gray-400 to-gray-500 hover:from-gray-500 hover:to-gray-600 text-white font-semibold px-6 py-2.5 rounded-xl shadow-md transition-all duration-300 transform hover:scale-105"
+      >
+        ♻️ Reset
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Animation + JS -->
+<script>
+function openPopup() {
+  document.getElementById('formPopup').classList.remove('hidden');
+}
+
+function closePopup() {
+  document.getElementById('formPopup').classList.add('hidden');
+}
+
+function resetForm() {
+  document.querySelectorAll('#formPopup input').forEach(input => {
+    if (!input.readOnly) input.value = '';
+  });
+}
+</script>
+
+<SCRIPT>
+// --- Popup Elements ---
+const openBtn = document.getElementById('openFormBtn');
+const closeBtn = document.getElementById('closeFormBtn');
+const modal = document.getElementById('allocationModal');
+
+// --- Open Modal ---
+openBtn.addEventListener('click', () => {
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+});
+
+// --- Close Modal ---
+closeBtn.addEventListener('click', () => {
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+});
+
+// --- Optional: Close when clicking outside the box ---
+modal.addEventListener('click', (e) => {
+  if (e.target === modal) {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+});
+</SCRIPT>
+<script src="popup.js"></script>
+
+    
+    <p 
+      id="invoiceError" 
+      class="text-red-500 text-sm mt-3 hidden font-medium"
+    >
+      ⚠️ Target completed, cannot create new invoice for this customer and item.
+    </p>
+  </div>
+</div>
+
+         <div class="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-6 rounded-xl shadow-2xl border border-gray-200">
+  <input 
+    type="file" 
+    id="excelFile" 
+    accept=".csv" 
+    class="mb-4 w-full text-sm text-gray-100 
+           file:mr-3 file:py-2 file:px-4 
+           file:rounded-lg file:border-0 
+           file:text-sm file:font-semibold 
+           file:bg-white file:text-indigo-700 
+           hover:file:bg-gray-100 
+           cursor-pointer transition"
+  >
+</div>
+
+<div class="flex justify-center my-4">
+  <button onclick="showFilteredPopup()" 
+      class="px-6 py-2 rounded-xl font-semibold shadow-md 
+             bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 
+             text-white transition transform hover:scale-105 hover:shadow-lg">
+      📊 Show Full Reports
+  </button>
+</div>
+
+
+            <div class="scrollable-table customer-table">
+          
+   <table class="border-collapse border w-full">
+
+  <thead id="invoiceTableHead" class="bg-gray-200">
+    <tr>
+      <th class="border p-2">City</th>
+      <th class="border p-2">Code</th>
+      <th class="border p-2">Cust</th>
+      <th class="border p-2">Item</th>
+      <th class="border p-2">Target</th>
+      <th class="border p-2">Achieved</th>
+      <th class="border p-2">Remaining</th>
+       <th class="border p-2">Per %</th>
+       <th class="border p-2">Value</th>
+    </tr>
+  </thead>
+                <tbody id="invoiceTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Allocation Page -->
+  <div id="allocationPage" class="hidden p-4">
+    <div class="main-with-sidebar">
+      <div id="sidebar" class="sidebar-gmail fixed inset-y-0 left-0 transform -translate-x-full md:transform-none md:static hidden md:block">
+        <div class="p-4">
+          <span class="user-name" id="loggedUserName">User</span>
+          <h2 class="text-xl font-bold mb-4">NOOR DISTRIBUTOR</h2>
+          <nav class="space-y-2">
+            <button id="navInvoiceEntry" class="nav-item w-full text-left">Home</button>
+            <button id="navAllocation" class="nav-item w-full text-left bg-primary text-white">Allocation</button>
+            <button id="navDoneTargets" class="nav-item w-full text-left">Done Targets</button>
+          <button id="navMySale" class="w-full text-left px-4 py-2 rounded-lg bg-yellow-600 text-white font-semibold shadow-md flex items-center gap-2 transition hover:bg-yellow-700">
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4m12 4H4a2 2 0 002 2h12a2 2 0 002-2z" />
+  </svg>
+  My Sale
+</button>  
+          <button id="navLogout" class="nav-item w-full text-left">Logout</button>
+          </nav>
+        </div>
+      </div>
+      <div class="content-area p-4">
+        <div id="hamburgerContainer" class="md:hidden mb-4">
+          <button id="hamburger" class="text-2xl">☰</button>
+        </div>
+        <h2 class="text-xl font-bold mb-4">Allocation</h2>
+        <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium">Select City</label>
+              <select id="citySelect" class="w-full p-2 border rounded" onchange="filterCustomersByCity()">
+                <option value="">Select a city</option>
+              </select>
+            </div>
+            <div class="relative">
+              <label class="block text-sm font-medium">Search Customer</label>
+              <input id="customerSearch" type="text" class="w-full p-2 border rounded" placeholder="Search by customer name or code">
+              <div id="customerSearchSuggestions" class="absolute w-full bg-white border rounded shadow-lg hidden"></div>
+            </div>
+          </div>
+          <div id="customerReport" class="mt-6 hidden">
+            <h3 id="customerReportTitle" class="text-lg font-bold mb-2">Customer Item-wise Summary</h3>
+            <div class="scrollable-table customer-table">
+              <table class="w-full">
+                <thead class="bg-secondary">
+                  <tr>
+                    <th class="p-2">Item</th>
+                    <th class="p-2">Target</th>
+                    <th class="p-2">Achieved</th>
+                    <th class="p-2">Remaining</th>
+                  </tr>
+                </thead>
+                <tbody id="customerReportBody">
+                  <tr><td colspan="4" class="p-2 text-center">Please search for a customer to view report.</td></tr>
+                </tbody>
+                <tfoot class="bg-secondary">
+                  <tr>
+                    <th class="p-2">Totals</th>
+                    <th id="customerReportTotalTarget" class="p-2">0</th>
+                    <th id="customerReportTotalAchieved" class="p-2">0</th>
+                    <th id="customerReportTotalRemaining" class="p-2">0</th>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+          <div id="allocationTables" class="mt-6"></div>
+          <div class="mt-4 flex space-x-4">
+            <button onclick="showMainPage()" class="bg-primary text-white p-2 rounded hover:bg-teal-600">Back to Home</button>
+            <button onclick="showResetInvoicesModal()" class="bg-red-500 text-white p-2 rounded hover:bg-red-600">Reset All Invoices</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done Targets Page -->
+  <div id="doneTargetPage" class="hidden p-4">
+    <div class="main-with-sidebar">
+      <div id="sidebar" class="sidebar-gmail fixed inset-y-0 left-0 transform -translate-x-full md:transform-none md:static hidden md:block">
+        <div class="p-4">
+          <span class="user-name" id="loggedUserName">User</span>
+          <h2 class="text-xl font-bold mb-4">NOOR DISTRIBUTOR</h2>
+          <nav class="space-y-2">
+            <button id="navInvoiceEntry" class="nav-item w-full text-left">Home</button>
+            <button id="navAllocation" class="nav-item w-full text-left">Allocation</button>
+            <button id="navDoneTargets" class="nav-item w-full text-left bg-primary text-white">Done Targets</button>
+          <button id="navMySale" class="w-full text-left px-4 py-2 rounded-lg bg-yellow-600 text-white font-semibold shadow-md flex items-center gap-2 transition hover:bg-yellow-700">
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4m12 4H4a2 2 0 002 2h12a2 2 0 002-2z" />
+  </svg>
+  My Sale
+</button>  
+          <button id="navLogout" class="nav-item w-full text-left">Logout</button>
+          </nav>
+        </div>
+      </div>
+      <div class="content-area p-4">
+        <div id="hamburgerContainer" class="md:hidden mb-4">
+          <button id="hamburger" class="text-2xl">☰</button>
+        </div>
+        <h2 class="text-xl font-bold mb-4">Done Targets</h2>
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+          <div id="doneTargetTables" class="scrollable-table customer-table"></div>
+          <div class="mt-4 flex space-x-4">
+            <button onclick="showMainPage()" class="bg-primary text-white p-2 rounded hover:bg-teal-600">Back to Home</button>
+            <button onclick="showResetDoneModal()" class="bg-red-500 text-white p-2 rounded hover:bg-red-600">Reset All Done</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<!-- ✅ Bonus Plan Page -->
+  <div id="bonusPage" class="hidden p-4">
+    <div class="main-with-sidebar">
+      <div class="content-area p-4">
+        <h2 class="text-xl font-bold mb-4">✅ Bonus Deal</h2>
+        <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+          <input type="file" id="bonusCsvFile" accept=".csv" class="mb-4">
+          <div class="scrollable-table customer-table">
+            <table id="bonusTable" class="w-full">
+              <thead class="bg-secondary">
+                <tr>
+                  <th class="p-2">Item</th>
+                  <th class="p-2">Qty</th>
+                  <th class="p-2">Bonus</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-medium">Item</label>
+              <select id="bonusItemSelect" class="w-full p-2 border rounded"></select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium">Qty</label>
+              <input id="bonusQty" type="number" class="w-full p-2 border rounded" min="0" disabled>
+
+              <label class="block text-sm font-medium">Bonus</label>
+              <input id="bonusValue" type="number" class="w-full p-2 border rounded" min="0">
+            </div>
+          </div>
+          <div class="mt-4 flex space-x-4">
+            <button onclick="resetBonusPlan()" class="bg-red-500 text-white p-2 rounded hover:bg-red-600">Reset Bonus Plan</button>
+            <button onclick="showMainPage()" class="bg-primary text-white p-2 rounded hover:bg-teal-600">Back to Home</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Excel Modal -->
+  <div id="resetExcelModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+      <h2 class="text-xl font-bold mb-4">Reset Excel</h2>
+      <p id="resetExcelError" class="text-red-500 text-sm mb-4 hidden">Invalid password!</p>
+      <input id="resetExcelPassword" type="password" class="w-full p-2 border rounded mb-4" placeholder="Enter password">
+      <div class="flex space-x-4">
+        <button onclick="resetExcel()" class="bg-red-500 text-white p-2 rounded hover:bg-red-600">Reset</button>
+        <button onclick="closeResetExcelModal()" class="bg-gray-500 text-white p-2 rounded hover:bg-gray-600">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Invoices Modal -->
+  <div id="resetInvoicesModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+      <h2 class="text-xl font-bold mb-4">Reset All Invoices</h2>
+      <p id="resetInvoicesError" class="text-red-500 text-sm mb-4 hidden">Invalid password!</p>
+      <input id="resetInvoicesPassword" type="password" class="w-full p-2 border rounded mb-4" placeholder="Enter password">
+      <div class="flex space-x-4">
+        <button onclick="resetInvoices()" class="bg-red-500 text-white p-2 rounded hover:bg-red-600">Reset</button>
+        <button onclick="closeResetInvoicesModal()" class="bg-gray-500 text-white p-2 rounded hover:bg-gray-600">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reset Done Targets Modal -->
+  <div id="resetDoneModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+      <h2 class="text-xl font-bold mb-4">Reset All Done Targets</h2>
+      <p id="resetDoneError" class="text-red-500 text-sm mb-4 hidden">Invalid password!</p>
+      <input id="resetDonePassword" type="password" class="w-full p-2 border rounded mb-4" placeholder="Enter password">
+      <div class="flex space-x-4">
+        <button onclick="resetDoneTargets()" class="bg-red-500 text-white p-2 rounded hover:bg-red-600">Reset</button>
+        <button onclick="closeResetDoneModal()" class="bg-gray-500 text-white p-2 rounded hover:bg-gray-600">Cancel</button>
+      </div>
+    </div>
+  </div>
+<!-- My Sale Page -->
+<div id="mySalePage" class="hidden p-4">
+  <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+    <h2 class="text-xl sm:text-2xl font-bold text-yellow-700 flex items-center gap-2">
+      🛒 My Sale
+    </h2>
+    <!-- Back to Home Button -->
+    <button onclick="showMainPage()" 
+      class="bg-blue-500 hover:bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg shadow transition text-sm sm:text-base">
+      ⬅ Back to Home
+    </button>
+  </div>
+
+  <!-- Upload CSV -->
+  <div class="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+    <input type="file" id="saleCsvFile" accept=".csv" 
+      class="p-2 border rounded-lg shadow cursor-pointer text-sm w-full sm:w-auto">
+    <button onclick="resetMySale()" 
+      class="bg-red-500 hover:bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg shadow transition text-sm sm:text-base">
+      🗑 Reset My Sale
+    </button>
+  </div>
+<button id="refreshMySale" 
+  class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow">
+  🔄 Sales Load
+</button>
+
+  <!-- Table -->
+  <div class="scrollable-table bg-white rounded-xl shadow-lg overflow-x-auto">
+    <table class="min-w-full border text-sm sm:text-base">
+      <thead class="bg-yellow-300 text-yellow-900">
+        <tr>
+          <th class="border p-2 text-left">Serial Num</th>
+          <th class="border p-2 text-left">Company</th>
+          <th class="border p-2 text-right">Sale</th>
+          <th class="border p-2 text-center">Til to Date</th>
+        </tr>
+      </thead>
+      <tbody id="mySaleTableBody" class="divide-y divide-gray-200">
+        <tr>
+          <td colspan="4" class="text-center p-3 text-gray-500">No data yet</td>
+        </tr>
+      </tbody>
+      <tfoot class="bg-gray-100 font-bold">
+        <tr>
+          <td colspan="2" class="border p-2 text-right">TOTAL SALE</td>
+          <td id="mySaleTotal" class="border p-2 text-right">0</td>
+          <td class="border p-2 text-center">-</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+  <!-- Reset App Modal -->
+  <div id="resetAppModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+      <h2 class="text-xl font-bold mb-4">Reset App</h2>
+      <p id="resetAppError" class="text-red-500 text-sm mb-4 hidden">Invalid password!</p>
+      <input id="resetAppPassword" type="password" class="w-full p-2 border rounded mb-4" placeholder="Enter password">
+      <div class="flex space-x-4">
+        <button onclick="resetApp()" class="bg-red-500 text-white p-2 rounded hover:bg-red-600">Reset</button>
+        <button onclick="closeResetAppModal()" class="bg-gray-500 text-white p-2 rounded hover:bg-gray-600">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+<footer class="mt-10">
+  <div class="relative max-w-6xl mx-auto px-6 py-4 rounded-2xl bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+
+    <!-- Decorative glowing circles -->
+    <span class="absolute -top-3 -left-3 w-16 h-16 bg-blue-400 rounded-full opacity-20 blur-xl animate-pulse"></span>
+    <span class="absolute -bottom-3 -right-3 w-20 h-20 bg-purple-500 rounded-full opacity-20 blur-xl animate-pulse delay-200"></span>
+
+    <!-- Developer -->
+    <div class="text-center sm:text-left">
+      <p class="text-sm sm:text-base font-medium text-gray-300">
+        Developed by 
+        <span class="font-bold text-yellow-400 text-lg sm:text-xl">Sani Hashmi</span>
+      </p>
+    </div>
+
+    <!-- Incharge Engineer -->
+    <div class="text-center">
+      <p class="text-sm sm:text-base font-semibold bg-gradient-to-r from-green-400 via-blue-500 to-purple-500 text-transparent bg-clip-text">
+      IT Incharge Engineer <span class="font-extrabold">M. Tahir</span>
+      </p>
+    </div>
+
+    <!-- Contact Info -->
+    <div class="text-center sm:text-right text-gray-300">
+      <p class="text-sm">📧 <span class="text-white font-medium">saniirsm99@gmail.com</span></p>
+      <p class="text-sm">📞 <span class="text-white font-medium">0311-7323373</span></p>
+    </div>
+
+  </div>
+</footer>
+  <script type="module" src="script.js"></script>
+<!-- Firebase App (Base SDK) -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+
+<!-- Firebase Realtime Database -->
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+<!-- آپ کی script.js فائل -->
+<script src="script.js"></script>
+
+
+<!-- سب سے پہلے یہ شامل کریں -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+
+  <script src="script.js"></script>
+</body>
+</html>
