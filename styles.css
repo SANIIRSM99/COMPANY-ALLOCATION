@@ -547,3 +547,10 @@ dialog {
 #syncSelectedUserBtn {
     min-width: 140px;
 }
+
+/* ✅ Universal Hover Fix (works for popup + main tables both) */
+table tr:hover {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  transition: all 0.2s ease-in-out;
+}
