@@ -11,7 +11,7 @@ body {
 }
 
 .bg-secondary {
-  background-color: #e0f2fe; /* Light teal for table headers */
+  background-color: #1c044c /* Light teal for table headers */
 }
 
 /* Table styling */
@@ -408,7 +408,6 @@ dialog {
   color: #fff !important;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
-
 
 /* Overall Performance Box */
 .overall-performance-box {
