@@ -554,3 +554,22 @@ table tr:hover {
   color: #ffffff !important;
   transition: all 0.2s ease-in-out;
 }
+
+/* ✅ Smart hover effect — only for data rows (not headers or filters) */
+.invoice-table tbody tr:hover,
+.customer-table tbody tr:hover,
+dialog tbody tr:hover,
+.popup-content tbody tr:hover {
+  background-color: #000 !important; /* black highlight */
+  color: #fff !important;            /* white text */
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* 🚫 Ensure headers & filters stay normal */
+.invoice-table thead tr:hover,
+.customer-table thead tr:hover,
+dialog thead tr:hover,
+.popup-content thead tr:hover {
+  background: inherit !important;
+  color: inherit !important;
+}
