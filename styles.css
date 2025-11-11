@@ -401,9 +401,12 @@ dialog {
   text-align: center;
 }
 
-.invoice-table tr:hover {
-  background: #f3f4f6;
-  transition: 0.2s;
+/* ✅ Force dark hover for all table rows */
+.invoice-table tr:hover,
+.customer-table tr:hover {
+  background-color: #000 !important;
+  color: #fff !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Overall Performance Box */
