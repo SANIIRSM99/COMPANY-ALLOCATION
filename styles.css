@@ -409,6 +409,7 @@ dialog {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+
 /* Overall Performance Box */
 .overall-performance-box {
   margin-top: 12px;
