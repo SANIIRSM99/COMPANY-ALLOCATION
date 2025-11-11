@@ -1,6 +1,6 @@
 const demoUsers = [
-   "ADMIN", "ND", "KHALID", "ASIF", "MUZAMMIL", "HAIDER", "IMRAN", "WAQAS", "MURTAZA", "YOUSAF", "AMJID", "ALI",
-    "SOHAIL", "SHOAIB", "IQBAL", "ATIF", "FAQIR", "FAROOQ", "JAVAID", "AMRANJNG", "BILAL", "ZEESHAN"
+   "ADMIN", "ALL", "KHALID", "ASIF", "MUZAMMIL", "HAIDER", "IMRAN", "WAQAS", "MURTAZA", "YOUSAF", "AMJID", "ALI",
+    "SOHAIL", "SHOAIB", "IQBAL", "ATIF", "FAQIR", "FAROOQ", "JAVAID", "AMRAN", "BILAL", "ZEESHAN"
 ].map(u => ({ username: u.trim(), password: "123" }));
 
 let unlockCode = null;
@@ -2780,17 +2780,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyD372Fz2sB6mResMRlxHvMDvIBsMXndO9I",
-  authDomain: "companyallocation.firebaseapp.com",
-  databaseURL: "https://companyallocation-default-rtdb.firebaseio.com",
-  projectId: "companyallocation",
-  storageBucket: "companyallocation.firebasestorage.app",
-  messagingSenderId: "561634129815",
-  appId: "1:561634129815:web:180efeeb8fdcbe70be36d2",
-  measurementId: "G-WYFQH9K24B"
+  apiKey: "AIzaSyCY3r6YelbzubGJvw_dv5ZMM-7bZ7ebsw0",
+  authDomain: "saniapp-7b4be.firebaseapp.com",
+  databaseURL: "https://saniapp-7b4be-default-rtdb.firebaseio.com",
+  projectId: "saniapp-7b4be",
+  storageBucket: "saniapp-7b4be.firebasestorage.app",
+  messagingSenderId: "928447805197",
+  appId: "1:928447805197:web:c83681948e2e52e15da244",
+  measurementId: "G-FTWSNVGVY1"
 };
 // example: put this near your firebaseConfig object
-const DATABASE_URL = "https://companyallocation-default-rtdb.firebaseio.com"; // <-- replace with your Realtime DB URL (no trailing slash)
+const DATABASE_URL = "https://saniapp-7b4be-default-rtdb.firebaseio.com"; // <-- replace with your Realtime DB URL (no trailing slash)
 
 
 function doPost(e) {
@@ -3449,5 +3449,4 @@ function syncSelectedUser() {
 /* ================================================================
    ✅ END Robust Sync System
 ================================================================ */
-
 
