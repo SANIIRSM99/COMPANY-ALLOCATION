@@ -483,7 +483,7 @@ function unlockApp() {
     const storedUnlockCode = parseInt(localStorage.getItem('unlockCode'));
 
     // ✅ Admin Master Code
-    const adminCode = "985973@AbkND";
+    const adminCode = "123ND";
 
     if (enteredCode === adminCode || parseInt(enteredCode) === storedUnlockCode) {
         isAppLocked = false;
