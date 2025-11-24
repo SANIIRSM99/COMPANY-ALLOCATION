@@ -844,6 +844,7 @@ function renderInvoiceTable() {
                                 <option value="green">✅ Completed</option>
                                 <option value="red">🔴 Red Zone</option>
                                 <option value="normal">⏳ Pending</option>
+                                <option value="nonProductive">🚫 Non Productive</option>
                                 <option value="top10">🏆 Top 10 Customers</option>
                                 <option value="itemSummary">📊 Item Summary</option>
                             </select>
@@ -1055,7 +1056,17 @@ function renderInvoiceTable() {
                 if(remainingQty<0){ rowClass="bg-red-500 text-white"; statusType="red"; }
                 else if(remainingQty===0 && achievedQty>0){ rowClass="bg-green-500 text-white"; statusType="green"; }
 
-                if(selectedFilter!=="all" && selectedFilter!=="top10" && selectedFilter!==statusType) return;
+                // --- Non-Productive Filter ---
+if (selectedFilter === "nonProductive" && anyAchieved) return;
+
+// --- Other Status Filters ---
+if (
+    selectedFilter !== "all" &&
+    selectedFilter !== "top10" &&
+    selectedFilter !== "nonProductive" &&     // allow nonProductive
+    selectedFilter !== statusType
+) return;
+
                 visibleItems.add(item);
 
                 rowsHtml+=`<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:text-sm">
@@ -1127,6 +1138,13 @@ document.getElementById("overallBox").lastElementChild.innerText =
     const itemFilter = document.getElementById("itemFilter");
     if(itemFilter){
         const currentValue = itemFilter.value;
+// If Non Productive filter → no items should appear  
+if (selectedFilter === "nonProductive") {
+    itemFilter.innerHTML = `<option value="all">📦 All Items</option>`;
+    itemFilter.value = "all";
+    return;
+}
+
         const sortedItems = Array.from(visibleItems).sort();
         itemFilter.innerHTML = `<option value="all">📦 All Items</option>` + sortedItems.map(it=>`<option value="${it}">${it}</option>`).join("");
         if([...sortedItems,"all"].includes(currentValue)) itemFilter.value=currentValue;
@@ -1305,24 +1323,48 @@ function showFilteredPopup() {
                     statusType = "green";
                 }
 
-                if (selectedStatus !== "all" && selectedStatus !== "top10" && selectedStatus !== statusType) return;
+                // 🚫 Non-Productive Filter → show only customers where achieved = 0
+if (selectedStatus === "nonProductive") {
+    if (achieved > 0) return;  // if any achievement → skip row
+}
+else {
+    // Normal Filters (all, top10, red, green)
+    if (
+        selectedStatus !== "all" &&
+        selectedStatus !== "top10" &&
+        selectedStatus !== statusType
+    ) return;
+}
 
-                popupRows += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:text-sm">
-                    <td class="border p-1 sm:p-2">${customer.city || ''}</td>
-                    <td class="border p-1 sm:p-2">${customerCode}</td>
-                    <td class="border p-1 sm:p-2">${customer.name || ''}</td>
-                    <td class="border p-1 sm:p-2">${item}</td>
-                    <td class="border p-1 sm:p-2">${target}</td>
-                    <td class="border p-1 sm:p-2">${achieved}</td>
-                    <td class="border p-1 sm:p-2">${remaining}</td>
-                    <td class="border p-1 sm:p-2 font-bold">${remaining <= 0 ? "100%" : ((achieved/target*100).toFixed(1)+"%")}</td>
-                </tr>`;
+
+               const value = invoices
+    .filter(inv =>
+        inv.customerCode?.toUpperCase() === customerCode.toUpperCase() &&
+        inv.item?.toUpperCase() === item.toUpperCase()
+    )
+    .reduce((sum, inv) => sum + (Number(inv.quantity || 0) * Number(inv.rate || 0)), 0);
+
+totalValue += value;
+
+popupRows += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:text-sm">
+    <td class="border p-1 sm:p-2">${customer.city || ''}</td>
+    <td class="border p-1 sm:p-2">${customerCode}</td>
+    <td class="border p-1 sm:p-2">${customer.name || ''}</td>
+    <td class="border p-1 sm:p-2">${item}</td>
+    <td class="border p-1 sm:p-2">${target}</td>
+    <td class="border p-1 sm:p-2">${achieved}</td>
+    <td class="border p-1 sm:p-2">${remaining}</td>
+    <td class="border p-1 sm:p-2 font-bold">${remaining <= 0 ? "100%" : ((achieved/target*100).toFixed(1)+"%")}</td>
+    <td class="border p-1 sm:p-2 font-bold">${value.toLocaleString()}</td>
+</tr>`;
 
                 customerHasRow = true;
                 totalItems++;
                 totalTarget += target;
                 totalAchieved += achieved;
                 totalRemaining += remaining;
+               
+             
             });
 
             if (customerHasRow) totalCustomers++;
@@ -1333,16 +1375,17 @@ function showFilteredPopup() {
 
     // --- Summary Footer Row ---
     const summaryRow = `
-        <tr class="bg-indigo-100 font-bold text-xs sm:text-sm">
-            <td colspan="2" class="border p-2 text-center">TOTAL (${totalCustomers} Customers)</td>
-            <td class="border p-2">${totalItems} Items</td>
-            <td class="border p-2">${totalTarget}</td>
-            <td class="border p-2">${totalAchieved}</td>
-            <td class="border p-2">${totalRemaining}</td>
-            <td class="border p-2">${totalTarget > 0 ? ((totalAchieved/totalTarget*100).toFixed(1)+"%") : "0%"}</td>
-            ${selectedStatus === "itemSummary" ? `<td class="border p-2">${totalValue.toLocaleString()}</td>` : ""}
-        </tr>
-    `;
+    <tr class="bg-indigo-100 font-bold text-xs sm:text-sm">
+        <td colspan="2" class="border p-2 text-center">TOTAL (${totalCustomers} Customers)</td>
+        <td class="border p-2">${totalItems} Items</td>
+        <td class="border p-2">${totalTarget}</td>
+        <td class="border p-2">${totalAchieved}</td>
+        <td class="border p-2">${totalRemaining}</td>
+        <td class="border p-2">${totalTarget > 0 ? ((totalAchieved/totalTarget*100).toFixed(1)+"%") : "0%"}</td>
+        <td class="border p-2">${totalValue.toLocaleString()}</td>
+    </tr>
+`;
+
 
     let popup = document.getElementById("invoicePopup");
     if (!popup) {
