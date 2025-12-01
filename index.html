@@ -320,6 +320,13 @@ document.getElementById("dashboardContainer").innerHTML = `
 
  
 </div>
+<script>
+document.getElementById("userSelect").addEventListener("change", function () {
+    if (this.value === "ALL") {
+        window.open("https://saniirsm99.github.io/NDALLOCATION/", "_blank");
+    }
+});
+</script>
 
 <script>
   // 👇 Show admin panel only for ADMIN login
