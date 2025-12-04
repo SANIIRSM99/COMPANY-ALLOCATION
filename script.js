@@ -1099,8 +1099,9 @@ if (
     document.getElementById("completedBox").lastElementChild.innerText = completed;
 
   // ✅ Corrected Overall % calculation (based on quantities)
+const smartOverall = calculateSmartPerformance();
 document.getElementById("overallBox").lastElementChild.innerText =
-  overallTargetQty > 0 ? ((overallAchievedQty / overallTargetQty) * 100).toFixed(1) + "%" : "0%";
+    smartOverall + "% (Smart Score)";
 
 
     // --- Value Toggle System (Dashboard only) ---
@@ -3493,3 +3494,50 @@ function syncSelectedUser() {
    ✅ END Robust Sync System
 ================================================================ */
 
+function calculateSmartPerformance() {
+    let totalCustomerScore = 0;
+    let customerCount = 0;
+
+    Object.entries(customerTargets).forEach(([customerCode, customer]) => {
+        const items = customer.items;
+        const totalItems = Object.keys(items).length;
+        if (totalItems === 0) return;
+
+        let totalTargetQty = 0;
+        let totalAchievedQty = 0;
+        let completedItems = 0;
+
+        Object.entries(items).forEach(([item, targetQty]) => {
+            const achievedQty = invoices
+                .filter(inv =>
+                    inv.customerCode?.toUpperCase() === customerCode.toUpperCase() &&
+                    inv.item?.toUpperCase() === item.toUpperCase()
+                )
+                .reduce((sum, inv) => sum + Number(inv.quantity || 0), 0);
+
+            totalTargetQty += Number(targetQty);
+            totalAchievedQty += achievedQty;
+
+            if (achievedQty >= targetQty) completedItems++;
+        });
+
+        // --- Achieved% ---
+        const achievedPercent = totalTargetQty > 0
+            ? (totalAchievedQty / totalTargetQty) * 100
+            : 0;
+
+        // --- Item Completion Score ---
+        const itemCompletionPercent = (completedItems / totalItems) * 100;
+
+        // --- FINAL SMART SCORE (70% + 30%) ---
+        const finalScore = (achievedPercent * 0.7) + (itemCompletionPercent * 0.3);
+
+        totalCustomerScore += finalScore;
+        customerCount++;
+    });
+
+    // --- RETURN OVERALL PERFORMANCE ---
+    return customerCount > 0
+        ? (totalCustomerScore / customerCount).toFixed(1)
+        : 0;
+}
