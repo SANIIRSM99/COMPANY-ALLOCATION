@@ -1101,7 +1101,7 @@ if (
   // ✅ Corrected Overall % calculation (based on quantities)
 const smartOverall = calculateSmartPerformance();
 document.getElementById("overallBox").lastElementChild.innerText =
-    smartOverall + "% (Smart Score)";
+    smartOverall + "% ";
 
 
     // --- Value Toggle System (Dashboard only) ---
