@@ -240,6 +240,8 @@ let lastRenderedCustomerCode = null;
  *
  * Expects `data` = array of objects (mapped rows)
  */
+
+
 function saveCSVToFirebase(data) {
   try {
     if (!data) return;
@@ -275,6 +277,57 @@ function saveCSVToFirebase(data) {
     console.error("❌ saveCSVToFirebase error:", err);
   }
 }
+
+function deleteUserData(userToDelete) {
+    const loggedUser = getLoggedUser();
+
+    if (!loggedUser) {
+        alert("❌ No logged in user!");
+        return;
+    }
+
+    // Only ADMIN can delete
+    if (loggedUser.toUpperCase() !== "ADMIN") {
+        alert("❌ Only ADMIN can delete data!");
+        return;
+    }
+
+    if (!userToDelete) {
+        alert("❌ Please select a user!");
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to DELETE all data of: ${userToDelete}?`)) {
+        return;
+    }
+
+    // CORRECT PATH — EXACT PATH FROM YOUR FILE
+    const finalPath = `${DATABASE_URL}/csvUploads/${userToDelete}/latest.json`;
+
+    fetch(finalPath, { method: "DELETE" })
+        .then(res => {
+            if (!res.ok) throw new Error("Failed: " + res.status);
+            alert(`✅ Deleted all data of ${userToDelete}`);
+        })
+        .catch(err => {
+            console.error("❌ Delete error:", err);
+            alert("Error deleting data!");
+        });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("deleteUserBtn");
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+        const user = document.getElementById("userSelect").value;
+        deleteUserData(user);
+    });
+});
+
+
+
+
 
 function syncUserDataFromFirebase(onDone) {
   const loggedUser = getLoggedUser();
