@@ -1428,7 +1428,7 @@ popupRows += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:t
     if (!popupRows) return;
 
     // --- Summary Footer Row ---
-    const summaryRow = `
+   const summaryRow = `
     <tr class="bg-indigo-100 font-bold text-xs sm:text-sm">
         <td colspan="2" class="border p-2 text-center">TOTAL (${totalCustomers} Customers)</td>
         <td class="border p-2">${totalItems} Items</td>
@@ -1437,41 +1437,111 @@ popupRows += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:t
         <td class="border p-2">${totalRemaining}</td>
         <td class="border p-2">${totalTarget > 0 ? ((totalAchieved/totalTarget*100).toFixed(1)+"%") : "0%"}</td>
         <td class="border p-2">${totalValue.toLocaleString()}</td>
-    </tr>
-`;
-
+    </tr>`;
 
     let popup = document.getElementById("invoicePopup");
+
+    // Function to attach copy functionality (har baar call karenge)
+    function attachCopyFunctionality() {
+        const copyBtn = document.getElementById("copyTableBtn");
+        if (!copyBtn) return;
+
+        // Remove previous listener if any (prevent duplicate)
+        copyBtn.replaceWith(copyBtn.cloneNode(true));
+        const newBtn = document.getElementById("copyTableBtn");
+
+        newBtn.addEventListener("click", function() {
+            const table = document.getElementById("popupTable");
+            if (!table) {
+                alert("Table not found!");
+                return;
+            }
+
+            let text = "";
+
+            // Header
+            const headers = table.querySelectorAll("thead th");
+            if (headers.length > 0) {
+                text += Array.from(headers)
+                    .map(th => th.innerText.trim().replace(/\s+/g, ' '))
+                    .join("\t") + "\n";
+            }
+
+            // Body rows (including summary)
+            const rows = table.querySelectorAll("tbody tr");
+            rows.forEach(row => {
+                const cells = row.querySelectorAll("td");
+                text += Array.from(cells)
+                    .map(td => td.innerText.trim().replace(/\s+/g, ' '))
+                    .join("\t") + "\n";
+            });
+
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = newBtn.innerHTML;
+                newBtn.innerHTML = "✅ Copied to Clipboard!";
+                newBtn.disabled = true;
+                newBtn.classList.remove("bg-blue-600", "hover:bg-blue-700");
+                newBtn.classList.add("bg-green-600");
+                
+                setTimeout(() => {
+                    newBtn.innerHTML = originalText;
+                    newBtn.disabled = false;
+                    newBtn.classList.remove("bg-green-600");
+                    newBtn.classList.add("bg-blue-600", "hover:bg-blue-700");
+                }, 2000);
+            }).catch(err => {
+                console.error("Copy failed:", err);
+                alert("Copy failed! Browser may not support or page is not secure (HTTPS needed).");
+            });
+        });
+    }
+
     if (!popup) {
+        // First time creation
         popup = document.createElement("div");
         popup.id = "invoicePopup";
         popup.className = "fixed inset-0 bg-black bg-opacity-50 flex justify-center items-start pt-2 z-50 hidden";
-
         popup.innerHTML = `
             <div class="bg-white rounded shadow-lg w-full h-full sm:w-[95%] sm:max-w-6xl sm:h-[80vh] flex flex-col overflow-hidden">
                 <div class="overflow-auto p-2 flex-1">
-                    <table class="w-full border-collapse border text-xs sm:text-sm">
+                    <table id="popupTable" class="w-full border-collapse border text-xs sm:text-sm">
                         ${popupThead}
                         <tbody id="popupInvoiceBody">${popupRows}${summaryRow}</tbody>
                     </table>
                 </div>
-                <div class="p-2 border-t bg-gray-100 flex justify-start">
-                    <button id="closePopup" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+                <div class="p-3 border-t bg-gray-100 flex flex-col sm:flex-row gap-3 justify-between items-center">
+                    <button id="copyTableBtn" class="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 flex items-center gap-2 font-medium">
+                        📋 Copy Table to Clipboard
+                    </button>
+                    <button id="closePopup" class="bg-red-600 text-white px-5 py-2 rounded hover:bg-red-700">
                         ✖ Close
                     </button>
                 </div>
             </div>
         `;
         document.body.appendChild(popup);
-        document.getElementById("closePopup").addEventListener("click", () => popup.classList.add("hidden"));
+
+        // Close button
+        document.getElementById("closePopup").addEventListener("click", () => {
+            popup.classList.add("hidden");
+        });
+
+        // Attach copy functionality
+        attachCopyFunctionality();
     } else {
-        document.querySelector("#invoicePopup table thead").outerHTML = popupThead;
-        document.getElementById("popupInvoiceBody").innerHTML = popupRows + summaryRow;
+        // Update existing popup
+        const table = popup.querySelector("#popupTable");
+        if (table) {
+            table.querySelector("thead").outerHTML = popupThead;
+            document.getElementById("popupInvoiceBody").innerHTML = popupRows + summaryRow;
+        }
+        
+        // Re-attach copy functionality (important!)
+        attachCopyFunctionality();
     }
 
     popup.classList.remove("hidden");
 }
-
 
 
 
