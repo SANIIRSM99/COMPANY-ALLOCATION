@@ -1213,7 +1213,11 @@ if (selectedFilter === "nonProductive") {
             const newsHtml = zeroAchieveCustomers.map(c=>{
                 const color = colors[index%colors.length];
                 index++;
-                return `<span class="${color} mx-2 sm:mx-4">🚨 ${c.name} [${c.code}]</span>`;
+                return `<span class="${color} mx-2 sm:mx-4 cursor-pointer underline" 
+             onclick="openCustomerPopup('${c.code}')">
+             🚨 ${c.name} [${c.code}]
+        </span>`;
+
             }).join("");
             breakingNews.innerHTML=`<marquee behavior="scroll" direction="left" scrollamount="4">${newsHtml}</marquee>`;
         }else breakingNews.innerHTML='<span class="text-gray-600 flex items-center justify-center h-full">No alerts at this time</span>';
@@ -3663,4 +3667,76 @@ function calculateSmartPerformance() {
     return customerCount > 0
         ? (totalCustomerScore / customerCount).toFixed(1)
         : 0;
+}
+
+function openCustomerPopup(customerCode) {
+
+    const customer = customerTargets[customerCode];
+    if (!customer) {
+        alert("Customer not found!");
+        return;
+    }
+
+    let rows = "";
+    const items = Object.keys(customer.items);
+
+    items.forEach(item => {
+        const target = Number(customer.items[item]);
+        const inv = invoices.filter(x =>
+            x.customerCode?.toUpperCase() === customerCode &&
+            x.item?.toUpperCase() === item
+        );
+        const achieved = inv.reduce((a, b) => a + Number(b.quantity || 0), 0);
+        const remaining = target - achieved;
+        const achievedValue = inv.reduce((a, b) => a + (Number(b.quantity) * Number(b.rate)), 0);
+        
+        rows += `
+            <tr>
+                <td class="border p-2">${item}</td>
+                <td class="border p-2">${target}</td>
+                <td class="border p-2">${achieved}</td>
+                <td class="border p-2">${remaining}</td>
+                <td class="border p-2">${achievedValue.toLocaleString()}</td>
+            </tr>
+        `;
+    });
+
+    const popupHtml = `
+        <div id="nonProductivePopup" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div class="bg-white w-11/12 md:w-2/3 lg:w-1/2 rounded-lg shadow-lg p-5">
+
+                <h2 class="text-xl font-bold mb-3 text-center">
+                    🚫 Non Productive Customer
+                </h2>
+
+                <p class="text-center font-semibold mb-1">${customer.name}</p>
+                <p class="text-center text-sm text-gray-600 mb-3">${customer.city} — ${customerCode}</p>
+
+                <div class="max-h-80 overflow-auto border rounded">
+                    <table class="w-full text-sm border-collapse">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                <th class="border p-2">Item</th>
+                                <th class="border p-2">Target</th>
+                                <th class="border p-2">Achieved</th>
+                                <th class="border p-2">Remaining</th>
+                                <th class="border p-2">Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+
+                <div class="text-center mt-4">
+                    <button onclick="document.getElementById('nonProductivePopup').remove()"
+                        class="bg-red-600 text-white px-5 py-2 rounded">
+                        Close
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', popupHtml);
 }
