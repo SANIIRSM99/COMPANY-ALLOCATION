@@ -3677,136 +3677,234 @@ function openCustomerPopup(customerCode) {
         return;
     }
 
-    // --- Find Customer Level (same logic from Allocation Page) ---
+    // ---------- SAME RANK LOGIC AS ALLOCATION ----------
     const allCustomers = Object.entries(customerTargets).map(([code, data]) => ({
         code,
         name: data.name || "Unknown",
         itemsCount: Object.keys(data.items || {}).length
     }));
 
-    // Group customers by items count
     const itemCountGroups = {};
-    allCustomers.forEach(cust => {
-        const count = cust.itemsCount;
-        if (!itemCountGroups[count]) itemCountGroups[count] = [];
-        itemCountGroups[count].push(cust);
+    allCustomers.forEach(c => {
+        if (!itemCountGroups[c.itemsCount]) itemCountGroups[c.itemsCount] = [];
+        itemCountGroups[c.itemsCount].push(c);
     });
 
-    // Sort groups highest → lowest
     const sortedGroups = Object.keys(itemCountGroups)
         .map(Number)
         .sort((a, b) => b - a)
         .map(count => itemCountGroups[count]);
 
-    // Assign levels
     sortedGroups.forEach((group, index) => {
-        let level, color;
-        if (index === 0) { level = "🥇 Golden"; color = "#FFD700"; }
-        else if (index === 1) { level = "🥈 Silver"; color = "#C0C0C0"; }
-        else if (index === 2) { level = "🥉 Bronze"; color = "#CD7F32"; }
-        else {
+        let level, levelColor;
+
+        if (index === 0) {
+            level = "🥇 Golden"; levelColor = "#FFD700";
+        } else if (index === 1) {
+            level = "🥈 Silver"; levelColor = "#C0C0C0";
+        } else if (index === 2) {
+            level = "🥉 Bronze"; levelColor = "#CD7F32";
+        } else {
             level = `Level ${index - 2}`;
-            const shades = ["#E0FFFF","#B0E0E6","#ADD8E6","#87CEEB","#6495ED","#4169E1","#0000CD"];
-            color = shades[(index - 3) % shades.length];
+            const shades = ["#E0FFFF", "#B0E0E6", "#ADD8E6", "#87CEEB", "#6495ED", "#4169E1", "#0000CD"];
+            levelColor = shades[(index - 3) % shades.length];
         }
-        group.forEach(c => { c.level = level; c.levelColor = color; });
+
+        group.forEach(c => {
+            c.level = level;
+            c.levelColor = levelColor;
+        });
     });
 
     const ranked = sortedGroups.flat();
     const rankInfo = ranked.find(c => c.code === customerCode);
 
-    const customerLevel = rankInfo ? rankInfo.level : "";
-    const levelColor = rankInfo ? rankInfo.levelColor : "#555";
+    const customerLevel = rankInfo?.level || "";
+    const levelColor = rankInfo?.levelColor || "#999";
 
-    // --- Check Non-Productive (achieve = 0?) ---
-    const allItems = Object.keys(customer.items);
-    let isNonProductive = true;
-    allItems.forEach(item => {
-        const inv = invoices.filter(x =>
-            x.customerCode?.toUpperCase() === customerCode &&
-            x.item?.toUpperCase() === item
-        );
-        const achieved = inv.reduce((a, b) => a + Number(b.quantity || 0), 0);
-        if (achieved > 0) isNonProductive = false;
-    });
+    // ---------- KPI + TABLE ----------
+    let rowsHtml = "";
+    let totalItems = 0, nonProductive = 0, progress = 0, completed = 0;
+    let totalTarget = 0, totalAchieved = 0, totalRemaining = 0, totalAchievedValue = 0;
+    const zeroItems = [];
 
-    // icon
-    const npIcon = isNonProductive ? "🚫 Non-Productive" : "";
+    const sortedItems = Object.keys(customer.items).sort();
 
-    // --- Build Items Table ---
-    let rows = "";
-    allItems.forEach(item => {
+    sortedItems.forEach(item => {
         const target = Number(customer.items[item]);
+
         const inv = invoices.filter(x =>
             x.customerCode?.toUpperCase() === customerCode &&
             x.item?.toUpperCase() === item
         );
+
         const achieved = inv.reduce((a, b) => a + Number(b.quantity || 0), 0);
-        const remaining = target - achieved;
         const achievedValue = inv.reduce((a, b) => a + (Number(b.quantity) * Number(b.rate)), 0);
+        const capped = Math.min(achieved, target);
+        const remaining = target - achieved;
 
-        let rowColor = "";
-        if (remaining < 0) rowColor = "background:#dc2626;color:white;";
-        else if (achieved >= target) rowColor = "background:#16a34a;color:white;";
+        totalItems++;
+        totalTarget += target;
+        totalAchieved += capped;
+        totalRemaining += Math.max(remaining, 0);
+        totalAchievedValue += achievedValue;
 
-        rows += `
-            <tr style="${rowColor}">
+        if (achieved === 0) {
+            nonProductive++;
+            zeroItems.push(item);
+        }
+
+        let rowStyle = "";
+        if (remaining < 0) rowStyle = "background:#dc2626;color:white;";
+        else if (achieved >= target) {
+            completed++;
+            rowStyle = "background:#16a34a;color:white;";
+        } else if (achieved > 0) {
+            progress++;
+            const percent = Math.min((achieved / target) * 100, 100);
+            rowStyle = `
+                background: linear-gradient(to right, #16a34a ${percent}%, #60a5fa ${percent}%);
+                color:white;
+            `;
+        }
+
+        rowsHtml += `
+            <tr style="${rowStyle}">
                 <td class="border p-2">${item}</td>
                 <td class="border p-2">${target}</td>
                 <td class="border p-2">${achieved}</td>
                 <td class="border p-2">${remaining}</td>
-                <td class="border p-2">${achievedValue.toLocaleString()}</td>
+                <td class="border p-2 font-bold">${achievedValue.toLocaleString()}</td>
             </tr>
         `;
     });
 
-    // --- Final Popup HTML (same design as allocation) ---
-    const popupHtml = `
-        <div id="nonProductivePopup" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div class="bg-white w-11/12 md:w-2/3 lg:w-1/2 rounded-xl shadow-2xl p-6">
+    const overall = totalTarget > 0 ? ((totalAchieved / totalTarget) * 100).toFixed(1) : 0;
 
-                <!-- HEADER LIKE ALLOCATION -->
-                <div class="text-center mb-4">
-                    <p class="text-sm font-bold px-3 py-1 inline-block rounded-full"
-                       style="background:${levelColor};color:black;">
+    // ---------- FINAL POPUP UI ----------
+    const popup = `
+    <div id="allocPopup" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+        <div class="bg-white w-11/12 md:w-4/6 lg:w-1/2 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-auto">
+
+            <!-- HEADER -->
+            <div class="mb-6 text-center p-6 rounded-2xl shadow-lg bg-gradient-to-r from-purple-700 via-purple-800 to-gray-900">
+
+                <div class="flex justify-between items-center">
+                    
+                    <!-- LEFT: LEVEL BADGE -->
+                    <p class="text-sm font-bold px-3 py-1 rounded-full text-black"
+                       style="background:${levelColor}">
                         ${customerLevel}
                     </p>
-                    <h2 class="text-xl font-extrabold mt-2">${customer.name}</h2>
-                    <p class="text-gray-600">${customer.city} — ${customerCode}</p>
 
-                    ${isNonProductive ? `
-                        <p class="text-red-600 font-bold mt-1 text-lg">
-                            🚫 Non-Productive Customer
+                    <!-- CENTER TITLE -->
+                    <h2 class="text-lg font-extrabold text-white drop-shadow-lg text-center flex-grow">
+                        📊 Customer Dashboard
+                    </h2>
+
+                    <!-- RIGHT: NON-PRODUCTIVE BADGE -->
+                    ${nonProductive > 0 ? `
+                        <p class="text-sm font-bold px-3 py-1 rounded-full bg-red-600 text-white ml-3">
+                            🚫 Non-Productive
                         </p>
-                    `: ''}
+                    ` : `<span></span>`}
                 </div>
 
-                <!-- TABLE -->
-                <div class="max-h-80 overflow-auto border rounded">
-                    <table class="w-full text-sm border-collapse">
-                        <thead class="bg-gray-200 sticky top-0">
-                            <tr>
-                                <th class="border p-2">Item</th>
-                                <th class="border p-2">Target</th>
-                                <th class="border p-2">Achieved</th>
-                                <th class="border p-2">Remaining</th>
-                                <th class="border p-2">Value</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows}</tbody>
-                    </table>
+                <p class="text-3xl font-extrabold text-yellow-400 drop-shadow-lg mt-2">${customer.name}</p>
+                <p class="text-gray-300 text-sm mt-1">${customer.city} • ${customerCode}</p>
+            </div>
+
+            <!-- KPIs -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                <div class="p-5 rounded-2xl shadow-lg text-center bg-blue-100">
+                    <h3 class="text-lg font-bold text-blue-700">📦 Total Items</h3>
+                    <p class="text-3xl font-extrabold text-blue-900 mt-2">${totalItems}</p>
                 </div>
 
-                <div class="text-center mt-4">
-                    <button onclick="document.getElementById('nonProductivePopup').remove()"
-                        class="bg-red-600 text-white px-6 py-2 rounded-lg">
-                        Close
-                    </button>
+                <div class="p-5 rounded-2xl shadow-lg text-center bg-red-100">
+                    <h3 class="text-lg font-bold text-red-700">🚫 Non-Buying</h3>
+                    <p class="text-3xl font-extrabold text-red-900 mt-2">${nonProductive}</p>
                 </div>
+
+                <div class="p-5 rounded-2xl shadow-lg text-center bg-yellow-100">
+                    <h3 class="text-lg font-bold text-yellow-700">⏳ Progress</h3>
+                    <p class="text-3xl font-extrabold text-yellow-900 mt-2">${progress}</p>
+                </div>
+
+                <div class="p-5 rounded-2xl shadow-lg text-center bg-green-100">
+                    <h3 class="text-lg font-bold text-green-700">✅ Completed</h3>
+                    <p class="text-3xl font-extrabold text-green-900 mt-2">${completed}</p>
+                </div>
+
+                <div class="p-5 rounded-2xl shadow-lg text-center bg-purple-100">
+                    <h3 class="text-lg font-bold text-purple-700">💰 Value</h3>
+                    <p class="text-3xl font-extrabold text-purple-900 mt-2">${totalAchievedValue.toLocaleString()}</p>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="mb-6">
+                <h3 class="font-semibold mb-2">📈 Overall Achievement</h3>
+                <div class="w-full bg-gray-200 rounded-full h-6 overflow-hidden">
+                    <div class="h-6 text-xs flex items-center justify-center font-bold text-white rounded-full"
+                         style="width:${overall}%; background: linear-gradient(to right, #60a5fa, #16a34a);">
+                        ${overall}%
+                    </div>
+                </div>
+            </div>
+
+            <!-- Breaking News -->
+            <div class="relative overflow-hidden h-10 font-semibold text-sm rounded-lg shadow-lg mb-6
+                        bg-gradient-to-r from-red-500 via-yellow-400 to-red-500 border border-red-600">
+
+                ${
+                    zeroItems.length > 0
+                    ? `<marquee scrollamount="6">
+                        ${zeroItems.map(it => `
+                            <span class="text-white mx-4 bg-red-600 px-2 py-1 rounded-full">🚨 ${it}</span>
+                        `).join("")}
+                       </marquee>`
+                    : `<span class="text-gray-100 flex items-center justify-center h-full">No Alerts</span>`
+                }
 
             </div>
+
+            <!-- Table -->
+            <div class="overflow-auto max-h-80 border rounded">
+                <table class="w-full text-sm border-collapse">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="border p-2">Item</th>
+                            <th class="border p-2">Target</th>
+                            <th class="border p-2">Achieved</th>
+                            <th class="border p-2">Remaining</th>
+                            <th class="border p-2">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+
+                    <tfoot>
+                        <tr class="font-extrabold bg-indigo-800 text-white">
+                            <td class="border p-2 text-center">Total</td>
+                            <td class="border p-2 text-right">${totalTarget.toLocaleString()}</td>
+                            <td class="border p-2 text-right">${totalAchieved.toLocaleString()}</td>
+                            <td class="border p-2 text-right">${totalRemaining.toLocaleString()}</td>
+                            <td class="border p-2 text-right">${totalAchievedValue.toLocaleString()}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="text-center mt-4">
+                <button onclick="document.getElementById('allocPopup').remove()"
+                        class="bg-red-600 text-white px-6 py-2 rounded-lg">
+                    Close
+                </button>
+            </div>
+
         </div>
+    </div>
     `;
 
-    document.body.insertAdjacentHTML('beforeend', popupHtml);
+    document.body.insertAdjacentHTML("beforeend", popup);
 }
