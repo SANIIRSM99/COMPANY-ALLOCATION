@@ -1439,7 +1439,7 @@ popupRows += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:t
         <td class="border p-2">${totalTarget}</td>
         <td class="border p-2">${totalAchieved}</td>
         <td class="border p-2">${totalRemaining}</td>
-        <td class="border p-2">${totalTarget > 0 ? ((totalAchieved/totalTarget*100).toFixed(1)+"%") : "0%"}</td>
+        <td class="border p-2">  ${calculateSmartPerformance()}% </td> 
         <td class="border p-2">${totalValue.toLocaleString()}</td>
     </tr>`;
 
