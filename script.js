@@ -900,6 +900,7 @@ function renderInvoiceTable() {
                                 <option value="nonProductive">🚫 Non Productive</option>
                                 <option value="top10">🏆 Top 10 Customers</option>
                                 <option value="itemSummary">📊 Item Summary</option>
+                                 <option value="nonProductiveItemSummary">🚫 Non Productive Item</option>
                             </select>
                             <label class="font-bold">Filter by Item:</label>
                             <select id="itemFilter" class="w-full sm:w-auto border p-1 rounded text-sm">
