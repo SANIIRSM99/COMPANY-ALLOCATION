@@ -153,20 +153,32 @@
 </div>
 
 
-      <!-- Content Area -->
+       <!-- Content Area -->
        <div class="content-area p-4">
         <div id="hamburgerContainer" class="md:hidden mb-4">
           <button id="hamburger" class="text-2xl">☰</button>
         </div>
-
-        <!-- Invoice Entry -->
-       <div id="invoiceEntry" class="flex justify-center mt-6">
+<div id="invoiceEntry" class="flex justify-center mt-6">
   <div class="bg-white p-8 rounded-2xl shadow-xl border border-gray-200 
               hover:shadow-2xl transition-all duration-300 w-full max-w-3xl relative">
+<div class="relative mb-4">
+  <label class="font-bold text-sm">🔍 Search Customer</label>
+  <input
+    id="mainCustomerSearch"
+    type="text"
+    class="w-full p-2 border rounded"
+    placeholder="Search by Name or Code"
+    oninput="searchCustomerFromMain()"
+  />
+  <div
+    id="mainCustomerSuggestions"
+    class="absolute bg-white border w-full max-h-60 overflow-y-auto z-50 hidden">
+  </div>
+</div>
 
-    <!-- Version Badge -->
+   <!-- Version Badge -->
     <div class="absolute top-4 right-4 bg-blue-600 text-white px-4 py-1 rounded-full shadow-md">
-      <h4 class="text-sm font-semibold">V <b>6.2.0.9</b></h4>
+      <h4 class="text-sm font-semibold">V <b>6.3.0.9</b></h4>
     </div>
 
     <!-- Heading -->
@@ -177,6 +189,7 @@
 
   </div>
 </div>
+
 
     <!-- Breaking News Top -->
 <div id="breakingNews" 
