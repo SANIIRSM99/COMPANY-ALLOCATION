@@ -3928,3 +3928,47 @@ function openCustomerPopup(customerCode) {
 
     document.body.insertAdjacentHTML("beforeend", popup);
 }
+
+
+function searchCustomerFromMain() {
+  const input = document.getElementById("mainCustomerSearch");
+  const list = document.getElementById("mainCustomerSuggestions");
+  const query = input.value.trim().toLowerCase();
+
+  list.innerHTML = "";
+  list.classList.add("hidden");
+
+  if (!query) return;
+
+  const matches = customers.filter(c =>
+    c.name.toLowerCase().includes(query) ||
+    c.code.toLowerCase().includes(query)
+  );
+
+  if (matches.length === 0) return;
+
+  list.classList.remove("hidden");
+
+  matches.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "p-2 hover:bg-teal-500 hover:text-white cursor-pointer";
+    div.innerText = `${c.name} (${c.code}) - ${c.city}`;
+
+    div.onclick = () => {
+      input.value = `${c.name} (${c.code})`;
+      list.classList.add("hidden");
+
+      // 🔗 LINK TO ALLOCATION PAGE
+      openCustomerFromMain(c.code);
+    };
+
+    list.appendChild(div);
+  });
+}
+function openCustomerFromMain(customerCode) {
+  // Allocation page show
+  showAllocationPage();
+
+  // Allocation table render
+  renderAllocationTables(customerCode);
+}
