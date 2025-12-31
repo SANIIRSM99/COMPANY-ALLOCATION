@@ -913,17 +913,35 @@ function renderInvoiceTable() {
                                 <option value="Silver">🥈 Silver</option>
                                 <option value="Bronze">🥉 Bronze</option>
                                 <option value="Level 1">Level 1</option>
-                                <option value="Level 2">Level 2</option>
-                                <option value="Level 3">Level 3</option>
-                                <option value="Level 4">Level 4</option>
-                                <option value="Level 5">Level 5</option>
-                                <option value="Level 6">Level 6</option>
-                                <option value="Level 7">Level 7</option>
-                                <option value="Level 8">Level 8</option>
-                                <option value="Level 9">Level 9</option>
-                                <option value="Level 10">Level 10</option>
-                                <option value="Level 15">Level 15</option>
-                                 <option value="Level 20">Level 20</option>
+<option value="Level 2">Level 2</option>
+<option value="Level 3">Level 3</option>
+<option value="Level 4">Level 4</option>
+<option value="Level 5">Level 5</option>
+<option value="Level 6">Level 6</option>
+<option value="Level 7">Level 7</option>
+<option value="Level 8">Level 8</option>
+<option value="Level 9">Level 9</option>
+<option value="Level 10">Level 10</option>
+<option value="Level 11">Level 11</option>
+<option value="Level 12">Level 12</option>
+<option value="Level 13">Level 13</option>
+<option value="Level 14">Level 14</option>
+<option value="Level 15">Level 15</option>
+<option value="Level 16">Level 16</option>
+<option value="Level 17">Level 17</option>
+<option value="Level 18">Level 18</option>
+<option value="Level 19">Level 19</option>
+<option value="Level 20">Level 20</option>
+<option value="Level 21">Level 21</option>
+<option value="Level 22">Level 22</option>
+<option value="Level 23">Level 23</option>
+<option value="Level 24">Level 24</option>
+<option value="Level 25">Level 25</option>
+<option value="Level 26">Level 26</option>
+<option value="Level 27">Level 27</option>
+<option value="Level 28">Level 28</option>
+<option value="Level 29">Level 29</option>
+<option value="Level 30">Level 30</option>
                             </select>
                         </div>
                     </div>
