@@ -1231,25 +1231,62 @@ if (selectedFilter === "nonProductive") {
         if([...sortedItems,"all"].includes(currentValue)) itemFilter.value=currentValue;
     }
 
-    // --- Breaking News ---
-    const breakingNews = document.getElementById("breakingNews");
-    if(breakingNews){
-        if(zeroAchieveCustomers.length>0){
-            const colors=["text-red-600","text-blue-600","text-green-600","text-purple-600","text-pink-600","text-orange-600"];
-            let index=0;
-            const newsHtml = zeroAchieveCustomers.map(c=>{
-                const color = colors[index%colors.length];
-                index++;
-                return `<span class="${color} mx-2 sm:mx-4 cursor-pointer underline" 
-             onclick="openCustomerPopup('${c.code}')">
-             🚨 ${c.name} [${c.code}]
-        </span>`;
+   // --- Breaking News (Allocation jaisa style) ---
+const breakingNews = document.getElementById("breakingNews");
+if (breakingNews) {
+    if (zeroAchieveCustomers.length > 0) {
+        breakingNews.innerHTML = `
+            <marquee behavior="scroll" direction="left" scrollamount="5" class="flex items-center h-full">
+                ${zeroAchieveCustomers.map(customer => {
+                    // Rank/level dhoond lo (pehle se rankedCustomers mojood hai)
+                    const rankInfo = rankedCustomers.find(rc => rc.code === customer.code);
+                    const level = rankInfo?.level || "Unknown";
 
-            }).join("");
-            breakingNews.innerHTML=`<marquee behavior="scroll" direction="left" scrollamount="4">${newsHtml}</marquee>`;
-        }else breakingNews.innerHTML='<span class="text-gray-600 flex items-center justify-center h-full">No alerts at this time</span>';
+                    return `
+                        <span class="
+                            inline-flex items-center 
+                            mx-3 px-4 py-1.5 
+                            bg-red-700 text-white font-bold 
+                            rounded-full 
+                            shadow-lg shadow-red-900/60 
+                            border-2 border-yellow-300 
+                            ring-1 ring-yellow-200/50 
+                            hover:bg-red-800 transition-all duration-200 
+                            cursor-pointer whitespace-nowrap
+                        " onclick="openCustomerPopup('${customer.code}')">
+                            🚨 ${customer.name} (${customer.code}) - ${level}
+                        </span>
+                    `;
+                }).join('')}
+            </marquee>
+        `;
+        
+        // Container ko allocation jaisa gradient + styling do
+        breakingNews.className = `
+            relative overflow-hidden h-12 font-semibold text-sm 
+            rounded-xl shadow-xl mb-6 
+            bg-gradient-to-r from-red-600 via-yellow-400 to-red-600 
+            border-2 border-red-700
+        `;
+    } 
+    else {
+        breakingNews.innerHTML = `
+            <div class="flex items-center justify-center h-full text-gray-900 font-medium">
+                No alerts at this time
+            </div>
+        `;
+        
+        breakingNews.className = `
+            relative overflow-hidden h-12 font-semibold text-sm 
+            rounded-xl shadow-xl mb-6 
+            bg-gradient-to-r from-red-600 via-yellow-400 to-red-600 
+            border-2 border-red-700
+        `;
     }
 }
+}
+
+
 
 
 
