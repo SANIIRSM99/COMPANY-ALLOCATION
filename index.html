@@ -191,14 +191,35 @@
 </div>
 
 
-    <!-- Breaking News Top -->
-<div id="breakingNews" 
-    class="overflow-hidden whitespace-nowrap h-7 font-bold text-xs sm:text-sm rounded shadow 
-           bg-gradient-to-r from-yellow-200 via-red-200 to-yellow-200 border border-red-400 mb-1">
-    <marquee behavior="scroll" direction="left" scrollamount="3">
-        🚨 Sample Customer [C001] 🚨 Sample Customer [C002] 🚨 Sample Customer [C003]
-    </marquee>
+     <!-- Breaking News -->
+<div id="breakingNews" class="relative overflow-hidden h-10 font-semibold text-sm rounded-lg shadow-lg mb-6
+            bg-gradient-to-r from-red-600 via-yellow-400 to-red-600 border border-red-700">
+
+    ${zeroAchieveCustomers.length > 0
+        ? `<marquee behavior="scroll" direction="left" scrollamount="6" class="flex items-center">
+            ${zeroAchieveCustomers.map(customer => {
+                const rankInfo = rankedCustomers.find(rc => rc.code === customer.code);
+                const level = rankInfo?.level || "Unknown";
+
+                return `
+                    <span class="inline-flex items-center mx-3 px-4 py-1.5 
+                                 bg-red-700 text-white font-bold rounded-full 
+                                 shadow-lg shadow-red-900/50 
+                                 border-2 border-yellow-300 
+                                 ring-1 ring-yellow-200/70 
+                                 hover:bg-red-800 transition-colors cursor-pointer"
+                          onclick="openCustomerPopup('${customer.code}')">
+                        🚨 ${customer.name} (${customer.code}) - ${level}
+                    </span>
+                `;
+            }).join("")}
+          </marquee>`
+        : `<span class="text-gray-900 flex items-center justify-center h-full font-medium">
+              No alerts at this time
+          </span>`
+    }
 </div>
+               
 <div id="dashboardContainer"></div>
 
 <script>
