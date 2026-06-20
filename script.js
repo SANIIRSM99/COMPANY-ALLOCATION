@@ -101,7 +101,7 @@ function processCSV(text, onDone) {
           )
         : rows;
 
-    const mapped = filtered.map((row) => ({
+    const mapMainRow = (row) => ({
         City: row[0] || "",
         CustomerCode: (row[1] || "").trim().toUpperCase(),
         Customer: row[2] || "",
@@ -117,16 +117,23 @@ function processCSV(text, onDone) {
         Value: parseFloat((row[12] || "0").replace(/,/g, "")) || 0,
         Date: row[13] || "",
         ItemRate: parseFloat((row[14] || "0").replace(/,/g, "")) || 0
-    }));
+    });
+    const mappedAllRows = rows.map(mapMainRow);
+    const mapped = filtered.map(mapMainRow);
+    bookerRankSourceRows = getDateFilteredRows(mappedAllRows);
+    localStorage.setItem("bookerRankSourceRows", JSON.stringify(bookerRankSourceRows));
 
     console.log("✅ Total CSV Rows:", lines.length);
     console.log("✅ Filtered Rows (after user filter):", filtered.length);
     console.log("✅ Final Mapped Rows:", mapped.length);
 
-    allCSVData = mapped; // ✅ Save globally
+    fullExcelData = mapped;
+    localStorage.setItem("excelDataAll", JSON.stringify(mapped));
+    const visibleMapped = getDateFilteredRows(mapped);
+    allCSVData = visibleMapped; // Save filtered rows for the current dashboard date range
 
     // ✅ Invoices = Achieve > 0 rows
-    invoices = mapped
+    invoices = visibleMapped
         .filter((r) => r.CustomerCode && r.Item1)
         .map((r) => ({
             city: r.City,
@@ -143,7 +150,7 @@ function processCSV(text, onDone) {
 
     // ✅ Bonus Deals
     bonusDeals = {};
-    mapped.forEach((row) => {
+    visibleMapped.forEach((row) => {
         const item = row.Item1;
         if (!item) return;
         if (!bonusDeals[item]) bonusDeals[item] = [];
@@ -153,31 +160,13 @@ function processCSV(text, onDone) {
     });
     localStorage.setItem("bonusDeals", JSON.stringify(bonusDeals));
 
-    // ✅ My Sale Data
-    let mySaleData = JSON.parse(localStorage.getItem("mySaleData") || "[]");
-    mapped.forEach((row) => {
-        if (!row.SummaryNumber) return;
-        const existing = mySaleData.find((s) => s.summary === row.SummaryNumber);
-        if (existing) {
-            existing.value = (Number(existing.value) || 0) + row.Value;
-            existing.company = row.CompanyName || existing.company;
-            existing.date = row.Date || existing.date;
-        } else {
-            mySaleData.push({
-                summary: row.SummaryNumber,
-                company: row.CompanyName,
-                value: row.Value,
-                date: row.Date
-            });
-        }
-    });
-    localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
+    syncMySaleFromFirebase();
 
     // ✅ Render updates
-    if (typeof renderInvoiceTable === "function") renderInvoiceTable(mapped);
+    if (typeof renderInvoiceTable === "function") renderInvoiceTable(visibleMapped);
     if (typeof renderMySaleTable === "function") renderMySaleTable();
 
-   if (onDone) onDone(mapped);
+   if (onDone) onDone(visibleMapped);
 
 // ✅ Create a unique hash from current data to detect duplicate uploads
 const currentHash = btoa(JSON.stringify(mapped)).slice(0, 100);
@@ -231,6 +220,149 @@ let customerTargets = {};
 let isLoggedIn = false;
 let bonusDeals = {};
 let lastRenderedCustomerCode = null;
+let fullExcelData = [];
+let bookerRankSourceRows = [];
+
+function getActiveDataUser() {
+  return (localStorage.getItem("activeDataUser") || getLoggedUser() || "").toString().trim().toUpperCase();
+}
+
+function setActiveDataUser(user) {
+  const clean = (user || getLoggedUser() || "").toString().trim().toUpperCase();
+  if (clean) localStorage.setItem("activeDataUser", clean);
+  return clean;
+}
+
+function normalizeDateValue(value) {
+  const raw = (value || "").toString().trim();
+  if (!raw) return "";
+  const parsed = Date.parse(raw);
+  if (!isNaN(parsed)) return new Date(parsed).toISOString().slice(0, 10);
+  const parts = raw.split(/[\/\-\.]/).map(part => part.trim());
+  if (parts.length === 3) {
+    const [a, b, c] = parts;
+    if (c.length === 4) {
+      const day = a.padStart(2, "0");
+      const month = b.padStart(2, "0");
+      const iso = `${c}-${month}-${day}`;
+      if (!isNaN(Date.parse(iso))) return iso;
+    }
+  }
+  return "";
+}
+
+function getDefaultDateRange() {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  return {
+    from: firstDay.toISOString().slice(0, 10),
+    to: today.toISOString().slice(0, 10)
+  };
+}
+
+function ensureDateFilterDefaults() {
+  const defaults = getDefaultDateRange();
+  if (!localStorage.getItem("dashboardDateFrom")) localStorage.setItem("dashboardDateFrom", defaults.from);
+  if (!localStorage.getItem("dashboardDateTo")) localStorage.setItem("dashboardDateTo", defaults.to);
+}
+
+function getDateFilteredRows(rows) {
+  return rows || [];
+}
+
+function aggregateMySaleFromRows(rows) {
+  const saleMap = {};
+  (rows || []).forEach(row => {
+    const summary = (row.SummaryNumber || row.summary || "").toString().trim();
+    if (!summary) return;
+    const value = Number(row.Value ?? row.value ?? 0) || 0;
+    if (!saleMap[summary]) {
+      saleMap[summary] = {
+        summary,
+        company: row.CompanyName || row.company || "",
+        value: 0,
+        date: row.Date || row.date || ""
+      };
+    }
+    saleMap[summary].value += value;
+    saleMap[summary].company = row.CompanyName || row.company || saleMap[summary].company;
+    saleMap[summary].date = pickLatestDate(saleMap[summary].date, row.Date || row.date || "");
+  });
+  return Object.values(saleMap);
+}
+
+function setupDateRangeControls() {
+  return;
+}
+
+function applyDashboardDateFilter() {
+  return;
+}
+
+function resetDashboardDateFilter() {
+  return;
+}
+
+function safeTargetInputId(customerCode, item) {
+  return `zt_${encodeURIComponent(customerCode)}_${encodeURIComponent(item)}`.replace(/%/g, "_");
+}
+
+function getUserForDataRow(row) {
+  const active = getActiveDataUser();
+  if (active && active !== "ADMIN" && active !== "ALL") return active;
+  return ((row?.User1 || row?.User2 || getLoggedUser() || "")).toString().trim().toUpperCase();
+}
+
+async function saveRowsToFirebaseUser(rows, user) {
+  const targetUser = (user || "").toString().trim().toUpperCase();
+  if (!targetUser || targetUser === "ALL" || typeof DATABASE_URL !== "string" || !DATABASE_URL) return;
+  const payload = {
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: getLoggedUser() || targetUser,
+    rows: rows || []
+  };
+  await fetch(`${DATABASE_URL}/csvUploads/${targetUser}/latest.json`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function saveTargetUpdateToFirebase(customerCode, item) {
+  const rowsByUser = {};
+  (fullExcelData || []).forEach(row => {
+    const user = getUserForDataRow(row);
+    if (!user || user === "ALL") return;
+    if (!rowsByUser[user]) rowsByUser[user] = [];
+    rowsByUser[user].push(row);
+  });
+  await Promise.all(Object.entries(rowsByUser).map(([user, rows]) => saveRowsToFirebaseUser(rows, user)));
+}
+
+function setTargetForZeroItem(customerCode, item) {
+  const input = document.getElementById(safeTargetInputId(customerCode, item));
+  const newTarget = Number(input?.value || 0);
+  if (!newTarget || newTarget <= 0) {
+    alert("Please enter target greater than 0.");
+    return;
+  }
+  const updateRows = (rows) => (rows || []).map(row => {
+    const code = (row.CustomerCode || "").toString().trim().toUpperCase();
+    const rowItem = (row.Item1 || "").toString().trim().toUpperCase();
+    if (code === customerCode.toUpperCase() && rowItem === item.toUpperCase()) {
+      return { ...row, Target1: newTarget };
+    }
+    return row;
+  });
+  fullExcelData = updateRows(fullExcelData.length ? fullExcelData : JSON.parse(localStorage.getItem("excelDataAll") || "[]"));
+  excelData = updateRows(excelData);
+  bookerRankSourceRows = updateRows(bookerRankSourceRows);
+  localStorage.setItem("excelDataAll", JSON.stringify(fullExcelData));
+  localStorage.setItem("excelData", JSON.stringify(excelData));
+  localStorage.setItem("bookerRankSourceRows", JSON.stringify(bookerRankSourceRows));
+  saveTargetUpdateToFirebase(customerCode, item);
+  processCSVData(fullExcelData);
+}
 
 /**
  * Save processed CSV rows (mapped array) online.
@@ -254,11 +386,12 @@ function saveCSVToFirebase(data) {
 
     const payload = {
       uploadedAt: new Date().toISOString(),
-      uploadedBy: loggedUser,
+      uploadedBy: getLoggedUser() || loggedUser,
       rows: data
     };
 
-    const url = `${DATABASE_URL}/csvUploads/${loggedUser.toUpperCase()}/latest.json`;
+    const targetUploadUser = getActiveDataUser() || loggedUser.toUpperCase();
+    const url = `${DATABASE_URL}/csvUploads/${targetUploadUser}/latest.json`;
 
     fetch(url, {
       method: "PUT",
@@ -403,7 +536,7 @@ function buildCustomerTargets() {
         if (!customerTargets[customerCode]) {
             customerTargets[customerCode] = { name: customer, city: city, items: {} };
         }
-        if (item && target > 0) {
+        if (item && target >= 0) {
             customerTargets[customerCode].items[item] = (customerTargets[customerCode].items[item] || 0) + target;
             if (!items.includes(item)) items.push(item);
         }
@@ -897,6 +1030,7 @@ function renderInvoiceTable() {
                                 <option value="green">✅ Completed</option>
                                 <option value="red">🔴 Red Zone</option>
                                 <option value="normal">⏳ Pending</option>
+                                <option value="zeroTarget">Zero Target</option>
                                 <option value="nonProductive">🚫 Non Productive</option>
                                 <option value="top10">🏆 Top 10 Customers</option>
                                 <option value="itemSummary">📊 Item Summary</option>
@@ -1133,7 +1267,8 @@ if (
 
                 let rowClass = customerShade;
                 let statusType="normal";
-                if(remainingQty<0){ rowClass="bg-red-500 text-white"; statusType="red"; }
+                if(targetQtyNum === 0){ rowClass="bg-orange-100"; statusType="zeroTarget"; }
+                else if(remainingQty<0){ rowClass="bg-red-500 text-white"; statusType="red"; }
                 else if(remainingQty===0 && achievedQty>0){ rowClass="bg-green-500 text-white"; statusType="green"; }
 
                 // --- Non-Productive Filter ---
@@ -1144,17 +1279,23 @@ if (
     selectedFilter !== "all" &&
     selectedFilter !== "top10" &&
     selectedFilter !== "nonProductive" &&     // allow nonProductive
+    selectedFilter !== "zeroTarget" &&
     selectedFilter !== statusType
 ) return;
 
+if (selectedFilter === "zeroTarget" && targetQtyNum !== 0) return;
+
                 visibleItems.add(item);
+                const targetCell = targetQtyNum === 0
+                  ? `<div class="flex gap-1 items-center"><input id="${safeTargetInputId(customerCode, item)}" type="number" min="1" class="w-20 border rounded px-1 py-0.5 text-gray-900" placeholder="Target"><button onclick="setTargetForZeroItem('${customerCode.replace(/'/g, "\\'")}', '${item.replace(/'/g, "\\'")}')" class="bg-orange-600 text-white px-2 py-1 rounded text-xs">Set</button></div>`
+                  : targetQtyNum.toLocaleString();
 
                 rowsHtml+=`<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:text-sm">
                     <td class="border p-1 sm:p-2">${customer.city||''}</td>
                     <td class="border p-1 sm:p-2">${customerCode}</td>
                     <td class="border p-1 sm:p-2">${customer.name||''} (${rankInfo.level})</td>
                     <td class="border p-1 sm:p-2">${item}</td>
-                    <td class="border p-1 sm:p-2">${targetQtyNum.toLocaleString()}</td>
+                    <td class="border p-1 sm:p-2">${targetCell}</td>
                     <td class="border p-1 sm:p-2">${achievedQty.toLocaleString()}</td>
                     <td class="border p-1 sm:p-2">${remainingQty.toLocaleString()}</td>
                     <td class="border p-1 sm:p-2 font-bold">${perc}%</td>
@@ -2894,9 +3035,12 @@ function showMySalePage() {
   if (nav) nav.classList.add("bg-yellow-600","text-white");
 
   // render table
-  if (typeof renderMySaleTable === "function") {
+  if (typeof syncMySaleFromFirebase === "function") {
+    syncMySaleFromFirebase();
+  } else if (typeof renderMySaleTable === "function") {
     renderMySaleTable();
   }
+  renderSaleUploadHistory();
 }
 
 
@@ -2920,20 +3064,39 @@ function renderMySaleTable() {
   }
 
   let rows = "";
-  let total = 0;
-  mySaleData.forEach(sale => {
+  let grandTotal = 0;
+  const grouped = {};
+  mySaleData
+    .map(normalizeSaleRecord)
+    .sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.summary || "").localeCompare(b.summary || ""))
+    .forEach(sale => {
+      const dateKey = sale.date || "No Date";
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(sale);
+    });
+  Object.entries(grouped).forEach(([date, sales]) => {
+    let dateTotal = 0;
+    rows += `<tr class="bg-yellow-100 font-bold"><td colspan="4" class="border p-2">${escapeHtml(date)}</td></tr>`;
+    sales.forEach(sale => {
     const v = Number(sale.value) || 0;
-    total += v;
+      dateTotal += v;
+      grandTotal += v;
     rows += `<tr>
       <td class="border p-2">${escapeHtml(sale.summary)}</td>
       <td class="border p-2">${escapeHtml(sale.company)}</td>
       <td class="border p-2 text-right">${formatNumber(v)}</td>
       <td class="border p-2 text-center">${escapeHtml(sale.date)}</td>
     </tr>`;
+    });
+    rows += `<tr class="bg-gray-100 font-bold">
+      <td colspan="2" class="border p-2 text-right">Date Total</td>
+      <td class="border p-2 text-right">${formatNumber(dateTotal)}</td>
+      <td class="border p-2 text-center">${escapeHtml(date)}</td>
+    </tr>`;
   });
 
   tbody.innerHTML = rows;
-  if (totalEl) totalEl.textContent = formatNumber(total);
+  if (totalEl) totalEl.textContent = formatNumber(grandTotal);
 }
 
 // small helpers
@@ -2951,39 +3114,405 @@ function pickLatestDate(a,b){
   return b.length >= a.length ? b : a;
 }
 
+function calculatePerformanceForRows(rows) {
+  const targets = {};
+  const invRows = [];
+  (rows || []).forEach(row => {
+    const code = (row.CustomerCode || "").toString().trim().toUpperCase();
+    const item = (row.Item1 || "").toString().trim().toUpperCase();
+    if (!code || !item) return;
+    if (!targets[code]) targets[code] = {};
+    targets[code][item] = (targets[code][item] || 0) + Number(row.Target1 || 0);
+    invRows.push({ code, item, qty: Number(row.Achieve1 || 0), value: Number(row.Value || 0) });
+  });
+  let totalCustomerScore = 0;
+  let customerCount = 0;
+  Object.entries(targets).forEach(([code, items]) => {
+    const itemEntries = Object.entries(items).filter(([, target]) => Number(target) > 0);
+    if (!itemEntries.length) return;
+    let totalTargetQty = 0;
+    let totalAchievedQty = 0;
+    let completedItems = 0;
+    itemEntries.forEach(([item, target]) => {
+      const achievedQty = invRows
+        .filter(inv => inv.code === code && inv.item === item)
+        .reduce((sum, inv) => sum + Number(inv.qty || 0), 0);
+      totalTargetQty += Number(target);
+      totalAchievedQty += achievedQty;
+      if (achievedQty >= Number(target)) completedItems++;
+    });
+    const achievedPercent = totalTargetQty > 0 ? (totalAchievedQty / totalTargetQty) * 100 : 0;
+    const itemCompletionPercent = (completedItems / itemEntries.length) * 100;
+    totalCustomerScore += (achievedPercent * 0.7) + (itemCompletionPercent * 0.3);
+    customerCount++;
+  });
+  return customerCount ? Number((totalCustomerScore / customerCount).toFixed(1)) : 0;
+}
+
+function getBookerRankings() {
+  const rankMap = {};
+  let rows = bookerRankSourceRows && bookerRankSourceRows.length
+    ? bookerRankSourceRows
+    : JSON.parse(localStorage.getItem("bookerRankSourceRows") || "[]");
+  if (!rows.length) rows = excelData || [];
+  rows.forEach(row => {
+    const users = [row.User1, row.User2]
+      .map(user => (user || "").toString().trim().toUpperCase())
+      .filter(Boolean);
+    [...new Set(users)].forEach(user => {
+      if (!rankMap[user]) rankMap[user] = { name: user, target: 0, achieve: 0, value: 0, rows: 0, sourceRows: [] };
+      rankMap[user].target += Number(row.Target1 || 0);
+      rankMap[user].achieve += Number(row.Achieve1 || 0);
+      rankMap[user].value += Number(row.Value || 0);
+      rankMap[user].rows += 1;
+      rankMap[user].sourceRows.push(row);
+    });
+  });
+  return Object.values(rankMap)
+    .map(item => ({
+      ...item,
+      percent: calculatePerformanceForRows(item.sourceRows)
+    }))
+    .sort((a, b) => b.percent - a.percent || b.achieve - a.achieve || b.value - a.value);
+}
+
+async function syncBookerRankingsFromFirebase() {
+  try {
+    if (typeof DATABASE_URL !== "string" || !DATABASE_URL) return;
+    const res = await fetch(`${DATABASE_URL}/csvUploads.json`);
+    if (!res.ok) return;
+    const json = await res.json();
+    const rows = [];
+    if (json && typeof json === "object") {
+      Object.values(json).forEach(node => {
+        if (node?.latest?.rows && Array.isArray(node.latest.rows)) rows.push(...node.latest.rows);
+      });
+    }
+    if (rows.length) {
+      bookerRankSourceRows = rows;
+      localStorage.setItem("bookerRankSourceRows", JSON.stringify(bookerRankSourceRows));
+      renderBookerRankingBox();
+    }
+  } catch (err) {
+    console.warn("Booker rank all-user sync skipped:", err);
+  }
+}
+
+function renderBookerRankingBox() {
+  const ticker = document.getElementById("bookerRankTicker");
+  if (!ticker) return;
+  const rankings = getBookerRankings();
+  if (!rankings.length) {
+    ticker.textContent = "No data";
+    return;
+  }
+  if (window.bookerRankTimer) clearInterval(window.bookerRankTimer);
+  let index = 0;
+  const paint = () => {
+    const item = rankings[index % rankings.length];
+    ticker.innerHTML = `#${index % rankings.length + 1} ${escapeHtml(item.name)}<br><span class="font-semibold">${item.percent}% | ${formatNumber(item.achieve)}</span>`;
+    index++;
+  };
+  paint();
+  window.bookerRankTimer = setInterval(paint, 1800);
+}
+
+function openBookerRankingModal() {
+  const rankings = getBookerRankings();
+  let modal = document.getElementById("bookerRankingModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "bookerRankingModal";
+    modal.className = "fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-60 p-4";
+    document.body.appendChild(modal);
+  }
+  const maxPercent = Math.max(100, ...rankings.map(r => r.percent));
+  const rows = rankings.length ? rankings.map((r, i) => {
+    const width = Math.max(5, Math.min(100, Math.round((r.percent / maxPercent) * 100)));
+    return `<div class="mb-4">
+      <div class="flex justify-between text-sm font-semibold text-gray-800">
+        <span>#${i + 1} ${escapeHtml(r.name)}</span>
+        <span>${r.percent}%</span>
+      </div>
+      <div class="h-4 bg-gray-200 rounded-full overflow-hidden mt-1">
+        <div class="h-full bg-gradient-to-r from-cyan-500 to-blue-700 rounded-full" style="width:${width}%"></div>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">Target ${formatNumber(r.target)} | Achieve ${formatNumber(r.achieve)} | Value ${formatNumber(r.value)}</div>
+    </div>`;
+  }).join("") : `<p class="text-center text-gray-500">No booker performance data found.</p>`;
+  modal.innerHTML = `<div class="bg-white w-full max-w-3xl rounded-xl shadow-2xl max-h-[85vh] overflow-auto">
+    <div class="flex items-center justify-between p-4 border-b">
+      <h2 class="text-xl font-bold text-gray-900">Booker Performance Ranking</h2>
+      <button onclick="closeBookerRankingModal()" class="px-3 py-1 rounded-lg bg-gray-800 text-white font-bold">X</button>
+    </div>
+    <div class="p-5">${rows}</div>
+  </div>`;
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function closeBookerRankingModal() {
+  const modal = document.getElementById("bookerRankingModal");
+  if (modal) {
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+  }
+}
+
+function normalizeSaleHeader(value) {
+  return (value || "")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function getSaleCell(row, headerMap, names, fallbackIndex) {
+  for (const name of names) {
+    const index = headerMap[normalizeSaleHeader(name)];
+    if (index !== undefined && row[index] !== undefined) return row[index];
+  }
+  return row[fallbackIndex] ?? "";
+}
+
+function parseSaleCsvRecords(rows) {
+  if (!rows || !rows.length) return [];
+  const firstRow = rows[0] || [];
+  const headerMap = {};
+  firstRow.forEach((cell, index) => {
+    const key = normalizeSaleHeader(cell);
+    if (key) headerMap[key] = index;
+  });
+  const hasHeader = headerMap.value !== undefined || headerMap.company !== undefined || headerMap.summery !== undefined || headerMap.summary !== undefined || headerMap.serialnum !== undefined || headerMap.serialnumber !== undefined || headerMap.serial !== undefined;
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+  const summaryFallback = hasHeader ? 4 : (firstRow.length >= 14 ? 10 : 4);
+  const companyFallback = hasHeader ? 5 : (firstRow.length >= 14 ? 11 : 5);
+  const valueFallback = hasHeader ? 6 : (firstRow.length >= 14 ? 12 : 6);
+  const dateFallback = hasHeader ? 7 : (firstRow.length >= 14 ? 13 : 7);
+
+  return dataRows.map(row => {
+    const summary = getSaleCell(row, headerMap, ["serialnum", "serialnumber", "serial", "srno", "sr", "companynumber", "summarynumber", "summery", "summary"], summaryFallback).toString().trim();
+    const company = getSaleCell(row, headerMap, ["company", "companyname"], companyFallback).toString().trim();
+    const valueRaw = getSaleCell(row, headerMap, ["value", "sale"], valueFallback).toString().trim();
+    const date = getSaleCell(row, headerMap, ["date", "tilldate", "tiltodate"], dateFallback).toString().trim();
+    const user1 = getSaleCell(row, headerMap, ["user", "user1"], 0).toString().trim();
+    const user2 = getSaleCell(row, headerMap, ["user2"], 1).toString().trim();
+    const value = parseFloat(valueRaw.replace(/,/g, ""));
+    if (!summary || isNaN(value)) return null;
+    return { summary, company, value, date, user1, user2 };
+  }).filter(Boolean);
+}
+
+function addSaleUploadHistory(fileName, records) {
+  const history = JSON.parse(localStorage.getItem("saleUploadHistory") || "[]");
+  const total = records.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+  history.unshift({
+    fileName: fileName || "sale.csv",
+    rows: records.length,
+    total,
+    uploadedAt: new Date().toLocaleString()
+  });
+  localStorage.setItem("saleUploadHistory", JSON.stringify(history.slice(0, 25)));
+  renderSaleUploadHistory();
+}
+
+function renderSaleUploadHistory() {
+  const box = document.getElementById("saleUploadHistory");
+  if (!box) return;
+  const history = JSON.parse(localStorage.getItem("saleUploadHistory") || "[]");
+  if (!history.length) {
+    box.innerHTML = "No upload record";
+    return;
+  }
+  box.innerHTML = history.map(item => `
+    <div class="flex flex-wrap justify-between gap-2 border-b py-2 last:border-b-0">
+      <span class="font-semibold">${escapeHtml(item.fileName)}</span>
+      <span>${escapeHtml(item.uploadedAt)}</span>
+      <span>Rows: ${formatNumber(item.rows)}</span>
+      <span>Total: ${formatNumber(item.total)}</span>
+    </div>
+  `).join("");
+}
+
+function clearSaleUploadHistory() {
+  if (!confirm("Clear CSV upload record? Sale table data will remain.")) return;
+  localStorage.removeItem("saleUploadHistory");
+  renderSaleUploadHistory();
+}
+
+function normalizeSaleRecord(sale) {
+  return {
+    id: sale.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    summary: (sale.summary || "").toString().trim(),
+    company: (sale.company || "").toString().trim(),
+    value: Number(sale.value) || 0,
+    date: normalizeDateValue(sale.date) || sale.date || new Date().toISOString().slice(0, 10),
+    user: (sale.user || getActiveDataUser() || getLoggedUser() || "").toString().trim().toUpperCase(),
+    createdAt: sale.createdAt || new Date().toISOString()
+  };
+}
+
+function upsertLocalSaleRecords(records) {
+  const byKey = {};
+  (JSON.parse(localStorage.getItem("mySaleData") || "[]") || []).forEach(sale => {
+    const clean = normalizeSaleRecord(sale);
+    byKey[`${clean.user}|${clean.date}|${clean.summary}|${clean.company}`] = clean;
+  });
+  records.forEach(sale => {
+    const clean = normalizeSaleRecord(sale);
+    byKey[`${clean.user}|${clean.date}|${clean.summary}|${clean.company}`] = clean;
+  });
+  mySaleData = Object.values(byKey);
+  localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
+  renderMySaleTable();
+}
+
+async function saveMySaleToFirebase(records) {
+  try {
+    if (typeof DATABASE_URL !== "string" || !DATABASE_URL) return;
+    const current = JSON.parse(localStorage.getItem("mySaleData") || "[]");
+    const byUser = {};
+    current.map(normalizeSaleRecord).forEach(row => {
+      const user = (row.user || getActiveDataUser()).toString().trim().toUpperCase();
+      if (!user || user === "ALL") return;
+      if (!byUser[user]) byUser[user] = [];
+      byUser[user].push(row);
+    });
+    await Promise.all(Object.entries(byUser).map(([user, rows]) => {
+      const payload = {
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: getLoggedUser() || user,
+        rows
+      };
+      return Promise.all([
+        fetch(`${DATABASE_URL}/mySales/${user}/latest.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        }),
+        fetch(`${DATABASE_URL}/csvUploads/${user}/mySales/latest.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+      ]);
+    }));
+  } catch (err) {
+    console.error("My Sale Firebase save failed:", err);
+  }
+}
+
+async function fetchMySalePayloadForUser(user) {
+  const paths = [
+    `${DATABASE_URL}/mySales/${user}/latest.json`,
+    `${DATABASE_URL}/csvUploads/${user}/mySales/latest.json`
+  ];
+  for (const url of paths) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (json && Array.isArray(json.rows)) return json;
+    } catch (err) {
+      console.warn("My Sale fetch path skipped:", err);
+    }
+  }
+  return null;
+}
+
+async function syncMySaleFromFirebase(onDone, forceUser = null) {
+  try {
+    const currentUser = (getLoggedUser() || "").toString().trim().toUpperCase();
+    if (!currentUser || typeof DATABASE_URL !== "string" || !DATABASE_URL) {
+      renderMySaleTable();
+      if (onDone) onDone(mySaleData);
+      return;
+    }
+    const targetUser = currentUser === "ADMIN"
+      ? (forceUser || getActiveDataUser() || currentUser).toString().trim().toUpperCase()
+      : currentUser;
+    const isAll = currentUser === "ADMIN" && targetUser === "ALL";
+    let rows = [];
+    if (isAll) {
+      const [mainRes, backupRes] = await Promise.all([
+        fetch(`${DATABASE_URL}/mySales.json`).catch(() => null),
+        fetch(`${DATABASE_URL}/csvUploads.json`).catch(() => null)
+      ]);
+      const mainJson = mainRes && mainRes.ok ? await mainRes.json() : null;
+      const backupJson = backupRes && backupRes.ok ? await backupRes.json() : null;
+      if (mainJson) Object.values(mainJson).forEach(node => {
+        if (node?.latest?.rows) rows = rows.concat(node.latest.rows);
+      });
+      if (backupJson) Object.values(backupJson).forEach(node => {
+        if (node?.mySales?.latest?.rows) rows = rows.concat(node.mySales.latest.rows);
+      });
+    } else {
+      const json = await fetchMySalePayloadForUser(targetUser);
+      if (json && Array.isArray(json.rows)) rows = json.rows;
+    }
+    if (rows.length) {
+      mySaleData = rows.map(normalizeSaleRecord);
+      localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
+    }
+  } catch (err) {
+    console.warn("My Sale Firebase sync skipped:", err);
+  }
+  renderMySaleTable();
+  if (onDone) onDone(mySaleData);
+}
+
+function addManualSale() {
+  const summary = document.getElementById("manualSaleNumber")?.value || "";
+  const company = document.getElementById("manualSaleCompany")?.value || "";
+  const value = Number(document.getElementById("manualSaleValue")?.value || 0);
+  const date = document.getElementById("manualSaleDate")?.value || new Date().toISOString().slice(0, 10);
+  if (!summary.trim() || !company.trim() || !value) {
+    alert("Please enter serial/company number, company and sale value.");
+    return;
+  }
+  const record = normalizeSaleRecord({ summary, company, value, date });
+  upsertLocalSaleRecords([record]);
+  saveMySaleToFirebase([record]);
+  ["manualSaleNumber", "manualSaleCompany", "manualSaleValue"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+}
+
 // process parsed CSV rows (merge by summary)
 function processSaleCsvRows(rows) {
   if (!rows || rows.length === 0) return;
 
-  let added = 0, merged = 0;
-  rows.forEach(row => {
-    if (!row || row.length === 0) return;
+  const records = parseSaleCsvRecords(rows);
+  const batchMap = {};
+  records.forEach(record => {
+    if (!batchMap[record.summary]) batchMap[record.summary] = { summary: record.summary, company: record.company, value: 0, date: record.date, user: record.user1 || record.user2 || getActiveDataUser() };
+    batchMap[record.summary].value += Number(record.value);
+    batchMap[record.summary].company = record.company || batchMap[record.summary].company;
+    batchMap[record.summary].date = pickLatestDate(batchMap[record.summary].date, record.date);
+  });
 
-    const summary = (row[10] || "").toString().trim();
-    const company = (row[11] || "").toString().trim();
-    const valueRaw = (row[12] || "").toString().trim();
-    const date = (row[13] || "").toString().trim();
-
-    if (!summary) return;
-
-    const value = parseFloat(valueRaw.replace(/,/g, ''));
-    if (isNaN(value)) return;
-
-    const existing = mySaleData.find(s => String(s.summary) === summary);
+  let added = 0, updated = 0;
+  Object.values(batchMap).forEach(sale => {
+    const existing = mySaleData.find(s => String(s.summary) === String(sale.summary));
     if (existing) {
-      existing.value = Number(existing.value || 0) + value;
-      existing.company = company || existing.company;
-      existing.date = pickLatestDate(existing.date, date);
-      merged++;
+      existing.value = sale.value;
+      existing.company = sale.company || existing.company;
+      existing.date = sale.date || existing.date;
+      updated++;
     } else {
-      mySaleData.push({ summary, company, value: Number(value), date });
+      mySaleData.push(sale);
       added++;
     }
   });
 
   localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
   renderMySaleTable();
-  console.log(`MySale: added ${added}, merged ${merged}`);
+  saveMySaleToFirebase(Object.values(batchMap));
+  renderBookerRankingBox();
+  console.log(`MySale: added ${added}, updated ${updated}`);
+  return records;
 }
 
 // CSV change handler
@@ -2994,7 +3523,8 @@ function handleSaleCsvFileChange(e) {
     skipEmptyLines: true,
     complete: function(results) {
       if (results && results.data) {
-        processSaleCsvRows(results.data);
+        const records = processSaleCsvRows(results.data) || [];
+        addSaleUploadHistory(file.name, records);
       } else {
         console.warn("No rows parsed from CSV");
       }
@@ -3026,6 +3556,9 @@ function resetMySale() {
 
 // Attach listeners after DOM ready
 document.addEventListener("DOMContentLoaded", () => {
+  setupDateRangeControls();
+  renderBookerRankingBox();
+
   const saleInput = document.getElementById("saleCsvFile");
   if (saleInput) {
     saleInput.removeEventListener("change", handleSaleCsvFileChange);
@@ -3042,12 +3575,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const refreshBtn = document.getElementById("refreshMySale");
   if (refreshBtn) {
     refreshBtn.addEventListener("click", () => {
-      renderMySaleTable();
-      alert("🔄 My Sale data refreshed!");
+      syncMySaleFromFirebase(() => {
+        renderSaleUploadHistory();
+        alert("My Sale data refreshed!");
+      });
     });
   }
 
   renderMySaleTable();
+  renderSaleUploadHistory();
 });
 
 
@@ -3219,7 +3755,8 @@ async function saveCSVToFirebase(data) {
       return;
     }
 
-    const path = `csvUploads/${loggedUser.toUpperCase()}/latest`;
+    const targetUploadUser = getActiveDataUser() || loggedUser.toUpperCase();
+    const path = `csvUploads/${targetUploadUser}/latest`;
     const url = `${DATABASE_URL}/${path}.json`;
 
     // --- Step 1: Fetch old Firebase data ---
@@ -3274,7 +3811,7 @@ async function saveCSVToFirebase(data) {
 
     const payload = {
       uploadedAt: new Date().toISOString(),
-      uploadedBy: loggedUser,
+      uploadedBy: getLoggedUser() || loggedUser,
       rows: merged,
     };
 
@@ -3340,7 +3877,8 @@ async function saveCSVToFirebase(data) {
       return;
     }
 
-    const path = `csvUploads/${loggedUser.toUpperCase()}/latest`;
+    const targetUploadUser = getActiveDataUser() || loggedUser.toUpperCase();
+    const path = `csvUploads/${targetUploadUser}/latest`;
     const url = `${DATABASE_URL}/${path}.json`;
 
     // 1) Fetch existing latest (if any)
@@ -3420,7 +3958,7 @@ async function saveCSVToFirebase(data) {
     // 4) Upload into latest.json (overwrite safely)
     const payload = {
       uploadedAt: new Date().toISOString(),
-      uploadedBy: loggedUser,
+      uploadedBy: getLoggedUser() || loggedUser,
       rows: mergedArray
     };
 
@@ -3491,7 +4029,7 @@ function processCSVData(data, onDone) {
     if (!Array.isArray(data)) data = [];
 
     // Normalize fields types and defaults
-    excelData = data.map(r => ({
+    const normalizedRows = data.map(r => ({
       City: r.City || "",
       CustomerCode: (r.CustomerCode || "").toString().trim().toUpperCase(),
       Customer: r.Customer || "",
@@ -3509,7 +4047,13 @@ function processCSVData(data, onDone) {
       ItemRate: parseSafeFloat(r.ItemRate)
     }));
 
-    // Save backup
+    fullExcelData = normalizedRows;
+    localStorage.setItem("excelDataAll", JSON.stringify(fullExcelData));
+    excelData = getDateFilteredRows(fullExcelData);
+    bookerRankSourceRows = excelData;
+    localStorage.setItem("bookerRankSourceRows", JSON.stringify(bookerRankSourceRows));
+
+    // Save filtered backup for the current dashboard view
     localStorage.setItem("excelData", JSON.stringify(excelData));
 
     // Recompute invoices (these are based on Achieve1)
@@ -3541,25 +4085,7 @@ invoices = excelData
     });
     localStorage.setItem("bonusDeals", JSON.stringify(bonusDeals));
 
-    // Recompute mySaleData
-    let mySaleData = JSON.parse(localStorage.getItem("mySaleData") || "[]");
-    excelData.forEach(row => {
-      if (!row.SummaryNumber) return;
-      const existing = mySaleData.find(s => s.summary === row.SummaryNumber);
-      if (existing) {
-        existing.value = (Number(existing.value) || 0) + Number(row.Value || 0);
-        existing.company = row.CompanyName || existing.company;
-        existing.date = row.Date || existing.date;
-      } else {
-        mySaleData.push({
-          summary: row.SummaryNumber,
-          company: row.CompanyName,
-          value: row.Value,
-          date: row.Date
-        });
-      }
-    });
-    localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
+    syncMySaleFromFirebase();
 
     // Build customer targets and UI data
     buildCustomerTargets();
@@ -3569,6 +4095,9 @@ invoices = excelData
     if (typeof renderMySaleTable === "function") renderMySaleTable();
     if (typeof renderBonusDeals === "function") renderBonusDeals();
     if (typeof populateBonusItems === "function") populateBonusItems();
+    if (typeof setupDateRangeControls === "function") setupDateRangeControls();
+    if (typeof renderBookerRankingBox === "function") renderBookerRankingBox();
+    if (typeof syncBookerRankingsFromFirebase === "function") syncBookerRankingsFromFirebase();
 
     if (onDone) onDone(excelData);
   } catch (err) {
@@ -3603,6 +4132,7 @@ async function syncUserDataFromFirebase(onDone, forceUser = null) {
       // default: sync for the logged-in user only
       targetUser = currentUser;
     }
+    setActiveDataUser(targetUser);
 
     if (typeof DATABASE_URL !== "string" || DATABASE_URL.length === 0) {
       console.warn("⚠️ syncUserDataFromFirebase: DATABASE_URL missing. Loading local data.");
@@ -3611,8 +4141,11 @@ async function syncUserDataFromFirebase(onDone, forceUser = null) {
       return;
     }
 
-    // Fetch all uploads for the target user (not latest.json only)
-    const url = `${DATABASE_URL}/csvUploads/${targetUser}.json`;
+    // Fetch one user's uploads, or all users when ADMIN selects ALL.
+    const isAllUsersSync = currentUser === "ADMIN" && targetUser === "ALL";
+    const url = isAllUsersSync
+      ? `${DATABASE_URL}/csvUploads.json`
+      : `${DATABASE_URL}/csvUploads/${targetUser}.json`;
     console.log("🔄 syncUserDataFromFirebase: fetching", url);
 
     const res = await fetch(url);
@@ -3627,19 +4160,26 @@ async function syncUserDataFromFirebase(onDone, forceUser = null) {
     // If ADMIN override used, json may contain multiple upload nodes; flatten them into rows
     let allRows = [];
     if (json) {
-      // If structure is { latest: { rows: [...] }, otherUpload: { rows: [...] }, ... }
-      const values = Object.values(json);
-      values.forEach(v => {
-        if (!v) return;
-        if (Array.isArray(v.rows)) {
-          allRows = allRows.concat(v.rows);
-        } else if (Array.isArray(v)) {
-          // sometimes direct array stored
-          allRows = allRows.concat(v);
-        } else if (v.rows && Array.isArray(v.rows)) {
-          allRows = allRows.concat(v.rows);
+      const collectRows = (node) => {
+        if (!node) return;
+        if (Array.isArray(node.rows)) {
+          allRows = allRows.concat(node.rows);
+        } else if (Array.isArray(node)) {
+          allRows = allRows.concat(node);
+        } else if (typeof node === "object") {
+          Object.values(node).forEach(child => {
+            if (child && Array.isArray(child.rows)) {
+              allRows = allRows.concat(child.rows);
+            }
+          });
         }
-      });
+      };
+
+      if (isAllUsersSync) {
+        Object.values(json).forEach(userNode => collectRows(userNode));
+      } else {
+        collectRows(json);
+      }
     }
 
     if (!allRows || allRows.length === 0) {
@@ -3701,7 +4241,7 @@ function syncSelectedUser() {
         btn.innerText = "🔄 Sync Data";
         btn.disabled = false;
         renderInvoiceTable();
-        renderMySaleTable?.();
+        syncMySaleFromFirebase(null, selected);
       }
     }, selected);
   } else {
@@ -3712,7 +4252,7 @@ function syncSelectedUser() {
         btn.innerText = "🔄 Sync Data";
         btn.disabled = false;
         renderInvoiceTable();
-        renderMySaleTable?.();
+        syncMySaleFromFirebase();
       }
     });
   }
