@@ -229,7 +229,7 @@ document.getElementById("dashboardContainer").innerHTML = `
     📊 Professional Dashboard
 </div>
 
-<div id="summaryBox" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-b-2xl shadow-xl">
+<div id="summaryBox" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-b-2xl shadow-xl">
 
     <!-- Total Customers -->
     <div id="totalCustomersBox" class="group relative p-4 rounded-2xl 
@@ -285,14 +285,6 @@ document.getElementById("dashboardContainer").innerHTML = `
     <div class="text-lg sm:text-xl font-extrabold mt-2">0</div>
 </div>
 
-    <!-- Booker Ranking -->
-    <div id="bookerRankBox" onclick="openBookerRankingModal()" class="group relative p-4 rounded-2xl shadow-[6px_6px_12px_rgba(0,0,0,0.2),-6px_-6px_12px_rgba(255,255,255,0.7)]
-         bg-gradient-to-br from-slate-800 to-cyan-700 text-white text-center transition transform hover:-translate-y-1 hover:scale-105 cursor-pointer overflow-hidden">
-        <span class="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition"></span>
-        <h3 class="text-xs sm:text-sm font-bold">Booker Rank</h3>
-        <div id="bookerRankTicker" class="text-xs sm:text-sm font-extrabold mt-2 min-h-[32px] leading-tight">No data</div>
-    </div>
-
    </div>
 `;
 </script>
@@ -300,14 +292,13 @@ document.getElementById("dashboardContainer").innerHTML = `
 
     
 
-  <!-- Button Group: Centered & Stylish -->
-<div class="flex flex-wrap justify-center items-center gap-4 mt-6">
+  <!-- Button Group: Responsive Action Toolbar -->
+<div class="mx-auto mt-6 mb-4 max-w-5xl rounded-2xl border border-gray-200 bg-white/90 p-3 shadow-xl">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
   <!-- Add Allocation -->
   <button 
     onclick="openPopup()" 
-    class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 
-           text-white font-semibold px-7 py-3 rounded-2xl shadow-lg transition-all duration-300 
-           transform hover:scale-110 hover:shadow-2xl">
+    class="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold px-5 py-3 rounded-xl shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
     ➕ Add Allocation
   </button>
 
@@ -315,15 +306,13 @@ document.getElementById("dashboardContainer").innerHTML = `
   <button 
     id="syncBtn" 
     onclick="syncSelectedUser()" 
-    class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 
-           text-white font-semibold px-7 py-3 rounded-2xl shadow-lg transition-all duration-300 
-           transform hover:scale-110 hover:shadow-2xl">
+    class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold px-5 py-3 rounded-xl shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
     🔄 Sync Data
   </button>
 
  <button id="deleteUserBtn"
     style="
-      padding: 10px 24px;
+      width: 100%; padding: 12px 20px;
       background: linear-gradient(135deg, #ff4d4d, #b30000);
       color: white;
       border: none;
@@ -347,11 +336,11 @@ document.getElementById("dashboardContainer").innerHTML = `
   <!-- Reset App -->
   <button 
     onclick="showResetAppModal()" 
-    class="bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 
-           text-white font-semibold px-7 py-3 rounded-2xl shadow-lg transition-all duration-300 
-           transform hover:scale-110 hover:shadow-2xl">
+    class="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold px-5 py-3 rounded-xl shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
     🔄 Reset App
   </button>
+</div>
+
 </div>
 
     <!-- Error Message -->
@@ -822,16 +811,58 @@ modal.addEventListener('click', (e) => {
   </div>
 
 
-  <div class="mb-4 bg-white rounded-xl shadow p-4">
+ <div class="mb-4 bg-white rounded-xl shadow p-4">
     <h3 class="font-bold text-gray-800 mb-3">Manual Sale Entry</h3>
+
     <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
-      <input id="manualSaleNumber" class="border rounded-lg px-3 py-2" placeholder="Serial / Company Number">
-      <input id="manualSaleCompany" class="border rounded-lg px-3 py-2" placeholder="Company">
-      <input id="manualSaleValue" type="number" step="any" class="border rounded-lg px-3 py-2" placeholder="Sale Value">
-      <input id="manualSaleDate" type="date" class="border rounded-lg px-3 py-2">
-      <button onclick="addManualSale()" class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg px-4 py-2">Add Sale</button>
+        <input id="manualSaleNumber"
+               class="border rounded-lg px-3 py-2"
+               placeholder="Serial / Company Number">
+
+        <input id="manualSaleCompany"
+               class="border rounded-lg px-3 py-2 bg-gray-100"
+               placeholder="Company"
+               readonly>
+
+        <input id="manualSaleValue"
+               type="number"
+               step="any"
+               class="border rounded-lg px-3 py-2"
+               placeholder="Sale Value">
+
+        <input id="manualSaleDate"
+               type="date"
+               class="border rounded-lg px-3 py-2">
+
+        <button onclick="addManualSale()"
+                class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg px-4 py-2">
+            Add Sale
+        </button>
     </div>
-  </div>
+</div>
+
+<script>
+const companies = {
+    "001": "SMITH KLINE GSK",
+    "003": "SANOFI",
+    "004": "GALAXY",
+    "005": "ABBOTT LAB",
+    "006": "HILTON",
+    "008": "HIGHNOON",
+    "010": "SOLITE HEALTH CARE",
+    "011": "OTSUKA",
+    "012": "ABBOTT INST",
+    "014": "GSK CONSUMER",
+    "015": "CARE"
+};
+
+document.getElementById('manualSaleNumber').addEventListener('input', function () {
+    const code = this.value.trim();
+
+    document.getElementById('manualSaleCompany').value =
+        companies[code] || '';
+});
+</script>
   <!-- Upload CSV -->
   <div class="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
     <input type="file" id="saleCsvFile" accept=".csv" 
@@ -840,8 +871,8 @@ modal.addEventListener('click', (e) => {
       class="bg-red-500 hover:bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg shadow transition text-sm sm:text-base">
       🗑 Reset My Sale
     </button>
-      <button onclick="clearSaleUploadHistory()" 
-      class="bg-gray-700 hover:bg-gray-800 text-white px-3 sm:px-4 py-2 rounded-lg shadow transition text-sm sm:text-base">
+    <button onclick="clearSaleUploadHistory()" 
+      class="bg-gray-600 hover:bg-gray-700 text-white px-3 sm:px-4 py-2 rounded-lg shadow transition text-sm sm:text-base">
       Clear Upload Record
     </button>
   </div>
@@ -850,11 +881,11 @@ modal.addEventListener('click', (e) => {
   🔄 Sales Load
 </button>
 
-    <div class="mt-4 mb-4 bg-white rounded-xl shadow p-4">
+
+  <div class="mt-4 mb-4 bg-white rounded-xl shadow p-4">
     <h3 class="font-bold text-gray-800 mb-2">CSV Upload Detail</h3>
     <div id="saleUploadHistory" class="text-sm text-gray-700">No upload record</div>
   </div>
-
   <!-- Table -->
   <div class="scrollable-table bg-white rounded-xl shadow-lg overflow-x-auto">
     <table class="min-w-full border text-sm sm:text-base">
