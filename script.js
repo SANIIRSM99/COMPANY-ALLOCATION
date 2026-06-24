@@ -671,6 +671,61 @@ function applyTargetToAllZeroItems() {
   alert(`Target applied to ${updated} zero target rows.`);
 }
 
+function getRankDisplay(level) {
+  if (level === "Golden") return "🥇 Golden";
+  if (level === "Silver") return "🥈 Silver";
+  if (level === "Bronze") return "🥉 Bronze";
+  return level || "";
+}
+
+function getRankColor(level) {
+  if (level === "Golden") return "#FFD700";
+  if (level === "Silver") return "#C0C0C0";
+  if (level === "Bronze") return "#CD7F32";
+  return "#4F46E5";
+}
+
+function getCustomerRankings(sourceTargets = customerTargets) {
+  const allCustomers = Object.entries(sourceTargets || {}).map(([code, data]) => ({
+    code,
+    name: data.name || "Unknown",
+    itemsCount: Object.keys(data.items || {}).length
+  }));
+  const itemCountGroups = {};
+  allCustomers.forEach(cust => {
+    const count = cust.itemsCount;
+    if (!itemCountGroups[count]) itemCountGroups[count] = [];
+    itemCountGroups[count].push(cust);
+  });
+  return Object.keys(itemCountGroups)
+    .map(Number)
+    .sort((a, b) => b - a)
+    .flatMap((count, index) => {
+      let level = "";
+      if (index === 0) level = "Golden";
+      else if (index === 1) level = "Silver";
+      else if (index === 2) level = "Bronze";
+      else level = `Level ${index - 2}`;
+      return itemCountGroups[count].map(cust => ({
+        ...cust,
+        level,
+        displayLevel: getRankDisplay(level),
+        levelColor: getRankColor(level)
+      }));
+    });
+}
+
+function populateRankFilter(rankedCustomers) {
+  const rankFilter = document.getElementById("rankFilter");
+  if (!rankFilter) return;
+  const current = rankFilter.value || "all";
+  const levels = [...new Set((rankedCustomers || []).map(c => c.level).filter(Boolean))];
+  rankFilter.innerHTML = `<option value="all">🏅 All Ranks</option>` + levels
+    .map(level => `<option value="${level}">${getRankDisplay(level)}</option>`)
+    .join("");
+  rankFilter.value = levels.includes(current) ? current : "all";
+}
+
 function handleSidebarClick(event) {
     const buttonId = event.target.id;
     console.log('Sidebar button clicked:', buttonId);
@@ -1046,56 +1101,11 @@ function renderInvoiceTable() {
 
     const selectedFilter = document.getElementById("statusFilter")?.value || "all";
     const selectedItem = document.getElementById("itemFilter")?.value || "all";
-    const selectedRank = document.getElementById("rankFilter")?.value || "all";
+    let selectedRank = document.getElementById("rankFilter")?.value || "all";
 
-    // --- Calculate customer ranks based on item count groups ---
-    const allCustomers = Object.entries(customerTargets).map(([code, data]) => ({
-        code,
-        name: data.name || "Unknown",
-        itemsCount: Object.keys(data.items || {}).length
-    }));
-
-    // Group customers by itemsCount
-    const itemCountGroups = {};
-    allCustomers.forEach(cust => {
-        const count = cust.itemsCount;
-        if (!itemCountGroups[count]) itemCountGroups[count] = [];
-        itemCountGroups[count].push(cust);
-    });
-
-    // Sort groups by itemsCount in descending order
-    const sortedGroups = Object.keys(itemCountGroups)
-        .map(Number)
-        .sort((a, b) => b - a)
-        .map(count => itemCountGroups[count]);
-
-    // Assign levels to groups
-    sortedGroups.forEach((group, index) => {
-        let level;
-        if (index === 0) {
-            level = "Golden";
-        } else if (index === 1) {
-            level = "Silver";
-        } else if (index === 2) {
-            level = "Bronze";
-        } else {
-            level = `Level ${index - 2}`;
-        }
-        group.forEach(cust => {
-            cust.level = level;
-        });
-    });
-
-    // Flatten back to allCustomers for filtering
-    const rankedCustomers = sortedGroups.flat();
-
-    // --- Debug: Log customer ranks ---
-    console.log('Customer Ranks:', rankedCustomers.map(c => ({
-        code: c.code,
-        name: c.name,
-        itemsCount: c.itemsCount,
-        level: c.level
-    })));
+    const rankedCustomers = getCustomerRankings();
+    populateRankFilter(rankedCustomers);
+    selectedRank = document.getElementById("rankFilter")?.value || "all";
 
     // --- Top 10 customers by totalTarget (QTY) ---
     const customerTotals = Object.entries(customerTargets).map(([code, cust]) => {
@@ -1158,7 +1168,7 @@ if (
 
             rowsHtml += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:text-sm">
                 <td class="border p-1 sm:p-2"></td>
-                <td class="border p-1 sm:p-2">${data.achievedCustomerCount} Productivity</td>
+                <td class="border p-1 sm:p-2">${data.achievedCustomerCount} Chali Gai</td>
                 <td class="border p-1 sm:p-2">${data.customerCount} Customers</td>
                 <td class="border p-1 sm:p-2">${item}</td>
                 <td class="border p-1 sm:p-2">${data.totalTargetQty.toLocaleString()}</td>
@@ -1247,7 +1257,7 @@ if (
                 rowsHtml+=`<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:text-sm">
                     <td class="border p-1 sm:p-2">${customer.city||''}</td>
                     <td class="border p-1 sm:p-2">${customerCode}</td>
-                    <td class="border p-1 sm:p-2">${customer.name||''} (${rankInfo.level})</td>
+                    <td class="border p-1 sm:p-2">${customer.name||''} (${rankInfo.displayLevel || rankInfo.level})</td>
                     <td class="border p-1 sm:p-2">${item}</td>
                     <td class="border p-1 sm:p-2">${targetCell}</td>
                     <td class="border p-1 sm:p-2">${achievedQty.toLocaleString()}</td>
@@ -1335,7 +1345,7 @@ if (breakingNews) {
                 ${zeroAchieveCustomers.map(customer => {
                     // Rank/level dhoond lo (pehle se rankedCustomers mojood hai)
                     const rankInfo = rankedCustomers.find(rc => rc.code === customer.code);
-                    const level = rankInfo?.level || "Unknown";
+                    const level = rankInfo?.displayLevel || rankInfo?.level || "Unknown";
 
                     return `
                         <span class="
@@ -1413,6 +1423,7 @@ function showFilteredPopup() {
     let totalRemaining = 0;
     let totalValue = 0;
     let totalAchievedCustomers = 0;
+    const citySummary = {};
 
     let popupThead = ""; // dynamic header
 
@@ -1457,7 +1468,7 @@ function showFilteredPopup() {
                 <tr>
                     <th class="border p-2">Item</th>
                     <th class="border p-2">Customers</th>
-                    <th class="border p-2">Productivity</th>
+                    <th class="border p-2">Chali Gai</th>
                     <th class="border p-2">Target</th>
                     <th class="border p-2">Achieved</th>
                     <th class="border p-2">Remaining</th>
@@ -1582,6 +1593,14 @@ else {
     .reduce((sum, inv) => sum + (Number(inv.quantity || 0) * Number(inv.rate || 0)), 0);
 
 totalValue += value;
+const cityKey = (customer.city || "Unknown City").toString().trim() || "Unknown City";
+if (!citySummary[cityKey]) citySummary[cityKey] = { customers: new Set(), items: 0, target: 0, achieved: 0, remaining: 0, value: 0 };
+citySummary[cityKey].customers.add(customerCode);
+citySummary[cityKey].items += 1;
+citySummary[cityKey].target += Number(target) || 0;
+citySummary[cityKey].achieved += Number(achieved) || 0;
+citySummary[cityKey].remaining += Number(remaining) || 0;
+citySummary[cityKey].value += Number(value) || 0;
 
 popupRows += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:text-sm">
     <td class="border p-1 sm:p-2">${customer.city || ''}</td>
@@ -1633,6 +1652,39 @@ if (
 
 // 🟢 CUSTOMER-BASED POPUP
 else {
+    let citySummaryRows = "";
+    if (selectedStatus === "red" || selectedStatus === "green") {
+        const cityRows = Object.entries(citySummary).sort((a, b) => b[1].value - a[1].value);
+        if (cityRows.length) {
+            citySummaryRows += `
+    <tr class="bg-slate-200 font-bold text-xs sm:text-sm">
+        <td colspan="9" class="border p-2 text-center">City Wise Report</td>
+    </tr>
+    <tr class="bg-slate-100 font-bold text-xs sm:text-sm">
+        <td class="border p-2">City</td>
+        <td class="border p-2">Customers</td>
+        <td class="border p-2">Items</td>
+        <td class="border p-2">Target</td>
+        <td class="border p-2">Achieved</td>
+        <td class="border p-2">Remaining</td>
+        <td colspan="2" class="border p-2">Status</td>
+        <td class="border p-2">Value</td>
+    </tr>`;
+            cityRows.forEach(([city, data]) => {
+                citySummaryRows += `
+    <tr class="bg-white text-xs sm:text-sm">
+        <td class="border p-2 font-semibold">${city}</td>
+        <td class="border p-2">${data.customers.size}</td>
+        <td class="border p-2">${data.items}</td>
+        <td class="border p-2">${data.target.toLocaleString()}</td>
+        <td class="border p-2">${data.achieved.toLocaleString()}</td>
+        <td class="border p-2">${data.remaining.toLocaleString()}</td>
+        <td colspan="2" class="border p-2">${selectedStatus === "red" ? "Red Zone" : "Completed"}</td>
+        <td class="border p-2 font-bold">${data.value.toLocaleString()}</td>
+    </tr>`;
+            });
+        }
+    }
     summaryRow = `
     <tr class="bg-indigo-100 font-bold text-xs sm:text-sm">
         <td colspan="4" class="border p-2 text-center">
@@ -1644,7 +1696,7 @@ else {
         <td class="border p-2">${totalRemaining}</td>
         <td class="border p-2">${calculateSmartPerformance()}%</td>
         <td class="border p-2">${totalValue.toLocaleString()}</td>
-    </tr>`;
+    </tr>${citySummaryRows}`;
 }
 
 
@@ -1786,64 +1838,9 @@ function renderAllocationTables(customerCode = null) {
         return;
     }
 
-    // ✅ Calculate total items for each customer (for ranking)
-    const allCustomers = Object.entries(customerTargets).map(([code, data]) => ({
-        code,
-        name: data.name || "Unknown",
-        itemsCount: Object.keys(data.items || {}).length
-    }));
-
-    // ✅ Group customers by itemsCount
-    const itemCountGroups = {};
-    allCustomers.forEach(cust => {
-        const count = cust.itemsCount;
-        if (!itemCountGroups[count]) itemCountGroups[count] = [];
-        itemCountGroups[count].push(cust);
-    });
-
-    // ✅ Sort groups by itemsCount in descending order
-    const sortedGroups = Object.keys(itemCountGroups)
-        .map(Number)
-        .sort((a, b) => b - a)
-        .map(count => itemCountGroups[count]);
-
-    // ✅ Assign rank levels to groups
-    sortedGroups.forEach((group, index) => {
-        let level, levelColor;
-        if (index === 0) {
-            level = "🥇 Golden";
-            levelColor = "#FFD700";
-        } else if (index === 1) {
-            level = "🥈 Silver";
-            levelColor = "#C0C0C0";
-        } else if (index === 2) {
-            level = "🥉 Bronze";
-            levelColor = "#CD7F32";
-        } else {
-            level = `Level ${index - 2}`;
-            const shades = ["#E0FFFF", "#B0E0E6", "#ADD8E6", "#87CEEB", "#6495ED", "#4169E1", "#0000CD"];
-            levelColor = shades[(index - 3) % shades.length];
-        }
-        group.forEach(cust => {
-            cust.level = level;
-            cust.levelColor = levelColor;
-        });
-    });
-
-    // ✅ Flatten back to allCustomers for finding rank info
-    const rankedCustomers = sortedGroups.flat();
-
-    // ✅ Debug: Log customer ranks
-    console.log('Customer Ranks:', rankedCustomers.map(c => ({
-        code: c.code,
-        name: c.name,
-        itemsCount: c.itemsCount,
-        level: c.level
-    })));
-
-    // ✅ Find current customer's rank info
+    const rankedCustomers = getCustomerRankings();
     const rankInfo = rankedCustomers.find(c => c.code === customerCode);
-    const customerLevel = rankInfo ? rankInfo.level : "";
+    const customerLevel = rankInfo ? rankInfo.displayLevel : "";
     const levelColor = rankInfo ? rankInfo.levelColor : "#888";
 
     // --- Table Calculation ---
@@ -3118,6 +3115,9 @@ async function syncMySaleFromFirebase(onDone, forceUser = null) {
     if (json && Array.isArray(json.rows)) {
       mySaleData = json.rows.map(normalizeSaleRecord);
       localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
+    } else {
+      mySaleData = [];
+      localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
     }
   } catch (err) { console.warn("My Sale Firebase sync skipped:", err); }
   renderMySaleTable();
@@ -3874,49 +3874,9 @@ function openCustomerPopup(customerCode) {
         return;
     }
 
-    // ---------- SAME RANK LOGIC AS ALLOCATION ----------
-    const allCustomers = Object.entries(customerTargets).map(([code, data]) => ({
-        code,
-        name: data.name || "Unknown",
-        itemsCount: Object.keys(data.items || {}).length
-    }));
-
-    const itemCountGroups = {};
-    allCustomers.forEach(c => {
-        if (!itemCountGroups[c.itemsCount]) itemCountGroups[c.itemsCount] = [];
-        itemCountGroups[c.itemsCount].push(c);
-    });
-
-    const sortedGroups = Object.keys(itemCountGroups)
-        .map(Number)
-        .sort((a, b) => b - a)
-        .map(count => itemCountGroups[count]);
-
-    sortedGroups.forEach((group, index) => {
-        let level, levelColor;
-
-        if (index === 0) {
-            level = "🥇 Golden"; levelColor = "#FFD700";
-        } else if (index === 1) {
-            level = "🥈 Silver"; levelColor = "#C0C0C0";
-        } else if (index === 2) {
-            level = "🥉 Bronze"; levelColor = "#CD7F32";
-        } else {
-            level = `Level ${index - 2}`;
-            const shades = ["#E0FFFF", "#B0E0E6", "#ADD8E6", "#87CEEB", "#6495ED", "#4169E1", "#0000CD"];
-            levelColor = shades[(index - 3) % shades.length];
-        }
-
-        group.forEach(c => {
-            c.level = level;
-            c.levelColor = levelColor;
-        });
-    });
-
-    const ranked = sortedGroups.flat();
+    const ranked = getCustomerRankings();
     const rankInfo = ranked.find(c => c.code === customerCode);
-
-    const customerLevel = rankInfo?.level || "";
+    const customerLevel = rankInfo?.displayLevel || "";
     const levelColor = rankInfo?.levelColor || "#999";
 
     // ---------- KPI + TABLE ----------
