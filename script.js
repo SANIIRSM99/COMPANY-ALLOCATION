@@ -282,43 +282,56 @@ function saveCSVToFirebase(data) {
   }
 }
 
-function deleteUserData(userToDelete) {
+async function deleteUserData(userToDelete) {
     const loggedUser = getLoggedUser();
 
     if (!loggedUser) {
-        alert("❌ No logged in user!");
+        alert("No logged in user!");
         return;
     }
 
-    // Only ADMIN can delete
     if (loggedUser.toUpperCase() !== "ADMIN") {
-        alert("❌ Only ADMIN can delete data!");
+        alert("Only ADMIN can delete data!");
         return;
     }
 
-    if (!userToDelete) {
-        alert("❌ Please select a user!");
+    userToDelete = (userToDelete || "").toString().trim().toUpperCase();
+    if (!userToDelete || userToDelete === "ALL" || userToDelete === "ADMIN") {
+        alert("Please select a valid user to delete.");
         return;
     }
 
-    if (!confirm(`Are you sure you want to DELETE all data of: ${userToDelete}?`)) {
+    if (!confirm(`Are you sure you want to DELETE all Firebase data of: ${userToDelete}?`)) {
         return;
     }
 
-    // CORRECT PATH — EXACT PATH FROM YOUR FILE
-    const finalPath = `${DATABASE_URL}/csvUploads/${userToDelete}/latest.json`;
+    try {
+        const paths = [
+            `${DATABASE_URL}/csvUploads/${userToDelete}.json`,
+            `${DATABASE_URL}/mySales/${userToDelete}.json`,
+            `${DATABASE_URL}/csvUploads/${userToDelete}/mySales.json`
+        ];
+        const results = await Promise.all(paths.map(url => fetch(url, { method: "DELETE" })));
+        const failed = results.find(res => !res.ok);
+        if (failed) throw new Error("Failed: " + failed.status);
 
-    fetch(finalPath, { method: "DELETE" })
-        .then(res => {
-            if (!res.ok) throw new Error("Failed: " + res.status);
-            alert(`✅ Deleted all data of ${userToDelete}`);
-        })
-        .catch(err => {
-            console.error("❌ Delete error:", err);
-            alert("Error deleting data!");
-        });
+        if (getActiveDataUser() === userToDelete) {
+            excelData = [];
+            invoices = [];
+            mySaleData = [];
+            localStorage.removeItem("excelData");
+            localStorage.removeItem("invoices");
+            localStorage.removeItem("mySaleData");
+            buildCustomerTargets();
+            renderInvoiceTable();
+            renderMySaleTable?.();
+        }
+        alert(`Deleted Firebase data of ${userToDelete}`);
+    } catch (err) {
+        console.error("Delete error:", err);
+        alert("Error deleting data from Firebase!");
+    }
 }
-
 document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("deleteUserBtn");
     if (!btn) return;
@@ -726,6 +739,277 @@ function populateRankFilter(rankedCustomers) {
   rankFilter.value = levels.includes(current) ? current : "all";
 }
 
+function getSelectedItems() {
+  const checks = Array.from(document.querySelectorAll("#itemFilterMenu .item-filter-check"));
+  const selected = checks.filter(ch => ch.checked).map(ch => ch.value);
+  if (!checks.length || selected.includes("all") || selected.length === 0) return ["all"];
+  return selected;
+}
+
+function itemFilterAllows(item, selectedItems = getSelectedItems()) {
+  return selectedItems.includes("all") || selectedItems.includes(item);
+}
+
+function getAllTargetItems() {
+  const items = new Set();
+  Object.values(customerTargets || {}).forEach(customer => {
+    Object.keys(customer.items || {}).forEach(item => items.add(item));
+  });
+  return items;
+}
+
+function updateItemFilterOptions(visibleItems) {
+  const menu = document.getElementById("itemFilterMenu");
+  const label = document.getElementById("itemFilterLabel");
+  if (!menu) return;
+  const previous = getSelectedItems();
+  const allItems = getAllTargetItems();
+  const sortedItems = Array.from(allItems.size ? allItems : (visibleItems || [])).sort((a, b) => a.localeCompare(b));
+  const useAll = previous.includes("all");
+  const checkedItems = useAll ? new Set(["all"]) : new Set(previous.filter(item => sortedItems.includes(item)));
+  if (!checkedItems.size) checkedItems.add("all");
+  const selectedCount = checkedItems.has("all") ? sortedItems.length : checkedItems.size;
+  menu.innerHTML = `
+    <div class="item-filter-header">
+      <div>
+        <div class="item-filter-title">Filter Items</div>
+        <div class="item-filter-count">${selectedCount} selected</div>
+      </div>
+      <div class="item-filter-actions">
+        <button type="button" data-item-action="all">All</button>
+        <button type="button" data-item-action="clear">Clear</button>
+      </div>
+    </div>
+    <input id="itemFilterSearch" class="item-filter-search" type="text" placeholder="Search item..." autocomplete="off">
+    <div class="item-filter-list">
+      <label class="item-filter-option font-semibold">
+        <input type="checkbox" class="item-filter-check" value="all" ${checkedItems.has("all") ? "checked" : ""}>
+        <span>All Items</span>
+      </label>
+      ${sortedItems.map(item => `
+        <label class="item-filter-option" data-item-name="${item.toLowerCase()}">
+          <input type="checkbox" class="item-filter-check" value="${item}" ${checkedItems.has(item) ? "checked" : ""}>
+          <span>${item}</span>
+        </label>
+      `).join("")}
+    </div>
+  `;
+  if (label) {
+    label.textContent = checkedItems.has("all") ? "All Items" : `${checkedItems.size} Items`;
+  }
+  positionItemFilterMenu();
+}
+
+function filterItemDropdownList(searchText = "") {
+  const query = searchText.trim().toLowerCase();
+  document.querySelectorAll("#itemFilterMenu .item-filter-option[data-item-name]").forEach(option => {
+    option.style.display = option.dataset.itemName.includes(query) ? "flex" : "none";
+  });
+}
+
+function setItemFilterSelection(mode) {
+  const checks = Array.from(document.querySelectorAll("#itemFilterMenu .item-filter-check"));
+  checks.forEach(ch => {
+    ch.checked = mode === "all" ? ch.value === "all" : false;
+  });
+  const all = checks.find(ch => ch.value === "all");
+  if (mode === "clear" && all) all.checked = true;
+  renderInvoiceTable();
+}
+
+function handleItemFilterChange(event) {
+  const target = event.target;
+  if (!target?.classList?.contains("item-filter-check")) return;
+  const checks = Array.from(document.querySelectorAll("#itemFilterMenu .item-filter-check"));
+  if (target.value === "all" && target.checked) {
+    checks.forEach(ch => { if (ch.value !== "all") ch.checked = false; });
+  } else if (target.value !== "all" && target.checked) {
+    const all = checks.find(ch => ch.value === "all");
+    if (all) all.checked = false;
+  }
+  if (!checks.some(ch => ch.checked)) {
+    const all = checks.find(ch => ch.value === "all");
+    if (all) all.checked = true;
+  }
+  renderInvoiceTable();
+}
+
+function positionItemFilterMenu() {
+  const box = document.getElementById("itemFilterBox");
+  const label = document.getElementById("itemFilterLabel");
+  const menu = document.getElementById("itemFilterMenu");
+  if (!box || !label || !menu || !box.open) return;
+
+  const rect = label.getBoundingClientRect();
+  const width = Math.min(Math.max(rect.width, 280), window.innerWidth - 16);
+  const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
+  const spaceBelow = window.innerHeight - rect.bottom - 12;
+  const spaceAbove = rect.top - 12;
+  const openAbove = spaceBelow < 180 && spaceAbove > spaceBelow;
+  const maxHeight = Math.max(160, Math.min(320, openAbove ? spaceAbove : spaceBelow));
+
+  menu.style.position = "fixed";
+  menu.style.left = `${left}px`;
+  menu.style.width = `${width}px`;
+  menu.style.maxHeight = `${maxHeight}px`;
+  menu.style.zIndex = "99999";
+  menu.style.top = openAbove ? "auto" : `${rect.bottom + 6}px`;
+  menu.style.bottom = openAbove ? `${window.innerHeight - rect.top + 6}px` : "auto";
+}
+
+function setupItemFilterDropdownPosition() {
+  const box = document.getElementById("itemFilterBox");
+  const menu = document.getElementById("itemFilterMenu");
+  if (!box) return;
+  box.addEventListener("toggle", positionItemFilterMenu);
+  if (menu && !menu.dataset.enhanced) {
+    menu.dataset.enhanced = "true";
+    menu.addEventListener("input", event => {
+      if (event.target?.id === "itemFilterSearch") filterItemDropdownList(event.target.value);
+    });
+    menu.addEventListener("click", event => {
+      const action = event.target?.dataset?.itemAction;
+      if (!action) return;
+      event.preventDefault();
+      setItemFilterSelection(action);
+    });
+  }
+  if (window.__itemFilterPositionBound) return;
+  window.__itemFilterPositionBound = true;
+  window.addEventListener("resize", positionItemFilterMenu);
+  window.addEventListener("scroll", positionItemFilterMenu, true);
+}
+
+function getCityWiseSummary(statusFilter = "all", selectedItems = ["all"]) {
+  const cityMap = {};
+  const visibleItems = new Set();
+  Object.entries(customerTargets || {}).forEach(([customerCode, customer]) => {
+    Object.entries(customer.items || {}).forEach(([item, targetQty]) => {
+      if (!itemFilterAllows(item, selectedItems)) return;
+      const matchingInvoices = invoices.filter(inv =>
+        inv.customerCode?.toUpperCase() === customerCode.toUpperCase() &&
+        inv.item?.toUpperCase() === item.toUpperCase()
+      );
+      const achievedQty = matchingInvoices.reduce((sum, inv) => sum + Number(inv.quantity || 0), 0);
+      const achievedValue = matchingInvoices.reduce((sum, inv) => sum + (Number(inv.quantity || 0) * Number(inv.rate || 0)), 0);
+      const targetQtyNum = Number(targetQty) || 0;
+      const remainingQty = targetQtyNum - achievedQty;
+      let statusType = "normal";
+      if (targetQtyNum === 0) statusType = "zeroTarget";
+      else if (remainingQty < 0) statusType = "red";
+      else if (remainingQty === 0 && achievedQty > 0) statusType = "green";
+      if (statusFilter === "red" && statusType !== "red") return;
+      if (statusFilter === "green" && statusType !== "green") return;
+
+      const city = (customer.city || "Unknown City").toString().trim() || "Unknown City";
+      const key = `${city}||${item}`;
+      if (!cityMap[key]) cityMap[key] = { city, item, customers: new Set(), items: 0, target: 0, achieved: 0, remaining: 0, value: 0 };
+      cityMap[key].customers.add(customerCode);
+      cityMap[key].items += 1;
+      cityMap[key].target += targetQtyNum;
+      cityMap[key].achieved += achievedQty;
+      cityMap[key].remaining += remainingQty;
+      cityMap[key].value += achievedValue;
+      visibleItems.add(item);
+    });
+  });
+  const rows = Object.values(cityMap).sort((a, b) => a.city.localeCompare(b.city) || a.item.localeCompare(b.item));
+  const totals = rows.reduce((acc, row) => {
+    row.customers.forEach(code => acc.customers.add(code));
+    acc.items += row.items;
+    acc.target += row.target;
+    acc.achieved += row.achieved;
+    acc.remaining += row.remaining;
+    acc.value += row.value;
+    return acc;
+  }, { customers: new Set(), items: 0, target: 0, achieved: 0, remaining: 0, value: 0 });
+  return { rows, totals, visibleItems };
+}
+
+function getCityWisePivot(report) {
+  const cities = [...new Set(report.rows.map(row => row.city))].sort((a, b) => a.localeCompare(b));
+  const itemMap = {};
+  report.rows.forEach(row => {
+    if (!itemMap[row.item]) itemMap[row.item] = { item: row.item, cities: {}, totalQty: 0 };
+    itemMap[row.item].cities[row.city] = (itemMap[row.item].cities[row.city] || 0) + row.achieved;
+    itemMap[row.item].totalQty += row.achieved;
+  });
+  const items = Object.values(itemMap).sort((a, b) => a.item.localeCompare(b.item));
+  const cityValueTotals = {};
+  cities.forEach(city => cityValueTotals[city] = 0);
+  report.rows.forEach(row => {
+    cityValueTotals[row.city] = (cityValueTotals[row.city] || 0) + row.value;
+  });
+  const grandValueTotal = Object.values(cityValueTotals).reduce((sum, value) => sum + value, 0);
+  return { cities, items, cityValueTotals, grandValueTotal };
+}
+
+function renderCityWisePivotRows(report) {
+  const pivot = getCityWisePivot(report);
+  if (!pivot.items.length) return '<tr><td colspan="9" class="p-2 text-center">No city wise data available.</td></tr>';
+  const colCount = pivot.cities.length + 2;
+  let html = `
+    <tr class="bg-emerald-100 font-bold text-xs sm:text-sm sticky top-0 z-10">
+      <td class="border p-2">ITEM NAME</td>
+      ${pivot.cities.map(city => `<td class="border p-2 text-right">${city}</td>`).join("")}
+      <td class="border p-2 text-right">TOTAL</td>
+    </tr>`;
+  html += pivot.items.map(row => `
+    <tr class="bg-white hover:bg-blue-50 text-xs sm:text-sm">
+      <td class="border p-2 font-semibold">${row.item}</td>
+      ${pivot.cities.map(city => `<td class="border p-2 text-right">${(row.cities[city] || 0).toLocaleString()}</td>`).join("")}
+      <td class="border p-2 text-right font-bold">${row.totalQty.toLocaleString()}</td>
+    </tr>`).join("");
+  html += `
+    <tr class="bg-indigo-100 font-bold text-xs sm:text-sm">
+      <td class="border p-2">VALUES</td>
+      ${pivot.cities.map(city => `<td class="border p-2 text-right">${pivot.cityValueTotals[city].toLocaleString()}</td>`).join("")}
+      <td class="border p-2 text-right">${pivot.grandValueTotal.toLocaleString()}</td>
+    </tr>`;
+  return html;
+}
+
+function renderCityWisePivotHead(report) {
+  const pivot = getCityWisePivot(report);
+  return `
+    <thead class="bg-emerald-100 sticky top-0 z-40">
+      <tr>
+        <th class="border p-2">ITEM NAME</th>
+        ${pivot.cities.map(city => `<th class="border p-2 text-right">${city}</th>`).join("")}
+        <th class="border p-2 text-right">TOTAL</th>
+      </tr>
+    </thead>`;
+}
+
+function renderCityWiseRows(report, label = "City Wise") {
+  if (!report.rows.length) return '<tr><td colspan="9" class="p-2 text-center">No city wise data available.</td></tr>';
+  let html = report.rows.map(row => `
+    <tr class="bg-blue-50 hover:bg-blue-100 transition text-xs sm:text-sm">
+      <td class="border p-1 sm:p-2 font-semibold">${row.city}</td>
+      <td class="border p-1 sm:p-2">${row.customers.size}</td>
+      <td class="border p-1 sm:p-2 font-semibold">${row.item}</td>
+      <td class="border p-1 sm:p-2">${row.items}</td>
+      <td class="border p-1 sm:p-2">${row.target.toLocaleString()}</td>
+      <td class="border p-1 sm:p-2">${row.achieved.toLocaleString()}</td>
+      <td class="border p-1 sm:p-2">${row.remaining.toLocaleString()}</td>
+      <td class="border p-1 sm:p-2 font-bold">${row.target > 0 ? ((row.achieved / row.target) * 100).toFixed(1) : 0}%</td>
+      <td class="border p-1 sm:p-2 font-bold">${row.value.toLocaleString()}</td>
+    </tr>`).join("");
+  html += `
+    <tr class="bg-indigo-100 font-bold text-xs sm:text-sm">
+      <td class="border p-2">TOTAL</td>
+      <td class="border p-2">${report.totals.customers.size}</td>
+      <td class="border p-2">${label}</td>
+      <td class="border p-2">${report.totals.items}</td>
+      <td class="border p-2">${report.totals.target.toLocaleString()}</td>
+      <td class="border p-2">${report.totals.achieved.toLocaleString()}</td>
+      <td class="border p-2">${report.totals.remaining.toLocaleString()}</td>
+      <td class="border p-2">${report.totals.target > 0 ? ((report.totals.achieved / report.totals.target) * 100).toFixed(1) : 0}%</td>
+      <td class="border p-2">${report.totals.value.toLocaleString()}</td>
+    </tr>`;
+  return html;
+}
+
 function handleSidebarClick(event) {
     const buttonId = event.target.id;
     console.log('Sidebar button clicked:', buttonId);
@@ -1028,30 +1312,44 @@ function renderInvoiceTable() {
         const filterRow = document.createElement("tr");
         filterRow.innerHTML = `
             <th colspan="9" class="p-0">
-                <div class="sticky top-0 z-20 bg-white border-b shadow-md">
-                    <div class="p-2 bg-white">
-                        <div class="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center gap-2 sm:gap-4 mb-2">
-                            <label class="font-bold">Filter by Status:</label>
-                            <select id="statusFilter" class="w-full sm:w-auto border p-1 rounded text-sm">
+                <div class="filter-toolbar sticky top-0 z-20">
+                    <div class="filter-toolbar-inner">
+                        <div class="filter-control">
+                            <label>Filter by Status</label>
+                            <select id="statusFilter">
                                 <option value="all">🌍 All</option>
                                 <option value="green">✅ Completed</option>
+                                <option value="cityWiseGreen">City Wise Completed</option>
                                 <option value="red">🔴 Red Zone</option>
+                                <option value="cityWiseRed">City Wise Red Zone</option>
                                 <option value="normal">⏳ Pending</option>
                                 <option value="zeroTarget">Zero Target</option>
                                 <option value="nonProductive">🚫 Non Productive</option>
                                 <option value="top10">🏆 Top 10 Customers</option>
+                                <option value="cityWise">City Wise Report</option>
                                 <option value="itemSummary">📊 Item Summary</option>
                                  <option value="nonProductiveItemSummary">🚫 Non Productive Item</option>
                             </select>
-                            <label class="font-bold">Apply All Zero Target:</label>
-                            <input id="zeroTargetApplyAllValue" type="number" min="1" class="w-full sm:w-24 border p-1 rounded text-sm" placeholder="Target">
-                            <button type="button" onclick="applyTargetToAllZeroItems()" class="w-full sm:w-auto bg-orange-600 hover:bg-orange-700 text-white font-semibold px-3 py-1 rounded text-sm">Apply All</button>
-                            <label class="font-bold">Filter by Item:</label>
-                            <select id="itemFilter" class="w-full sm:w-auto border p-1 rounded text-sm">
-                                <option value="all">📦 All Items</option>
-                            </select>
-                            <label class="font-bold">Filter by Rank:</label>
-                            <select id="rankFilter" class="w-full sm:w-auto border p-1 rounded text-sm">
+                        </div>
+                        <div class="filter-control zero-target-control">
+                            <label>Apply All Zero Target</label>
+                            <div class="filter-inline">
+                                <input id="zeroTargetApplyAllValue" type="number" min="1" placeholder="Target">
+                                <button type="button" onclick="applyTargetToAllZeroItems()">Apply All</button>
+                            </div>
+                        </div>
+                        <div class="filter-control item-filter-control">
+                            <label>Filter by Item</label>
+                            <details id="itemFilterBox">
+                                <summary id="itemFilterLabel">All Items</summary>
+                                <div id="itemFilterMenu">
+                                    <label class="flex items-center gap-2 px-2 py-1 font-semibold"><input type="checkbox" class="item-filter-check" value="all" checked> All Items</label>
+                                </div>
+                            </details>
+                        </div>
+                        <div class="filter-control">
+                            <label>Filter by Rank</label>
+                            <select id="rankFilter">
                                 <option value="all">🏅 All Ranks</option>
                                 <option value="Golden">🥇 Golden</option>
                                 <option value="Silver">🥈 Silver</option>
@@ -1095,12 +1393,13 @@ function renderInvoiceTable() {
         thead.prepend(filterRow);
 
         document.getElementById("statusFilter").addEventListener("change", renderInvoiceTable);
-        document.getElementById("itemFilter").addEventListener("change", renderInvoiceTable);
+        document.getElementById("itemFilterMenu").addEventListener("change", handleItemFilterChange);
+        setupItemFilterDropdownPosition();
         document.getElementById("rankFilter").addEventListener("change", renderInvoiceTable);
     }
 
     const selectedFilter = document.getElementById("statusFilter")?.value || "all";
-    const selectedItem = document.getElementById("itemFilter")?.value || "all";
+    const selectedItems = getSelectedItems();
     let selectedRank = document.getElementById("rankFilter")?.value || "all";
 
     const rankedCustomers = getCustomerRankings();
@@ -1152,7 +1451,7 @@ function renderInvoiceTable() {
     if (selectedFilter === "itemSummary" || selectedFilter === "nonProductiveItemSummary") {
 
         // --- Render Item Summary Table (QTY-based) ---
-        Object.entries(itemSummary).forEach(([item, data]) => {
+        Object.entries(itemSummary).sort((a, b) => a[0].localeCompare(b[0])).forEach(([item, data]) => {
            // 🚫 Non Productive Item Summary ONLY
 if (
     selectedFilter === "nonProductiveItemSummary" &&
@@ -1160,7 +1459,7 @@ if (
     data.totalAchievedQty > 0
 ) return;
 
-            if (selectedItem !== "all" && selectedItem !== item) return;
+            if (!itemFilterAllows(item, selectedItems)) return;
             const perc = data.totalTargetQty>0?((data.totalAchievedQty/data.totalTargetQty)*100).toFixed(1):0;
             let rowClass = "bg-gray-50";
             if(data.totalRemainingQty<0) rowClass="bg-red-500 text-white";
@@ -1179,6 +1478,12 @@ if (
             </tr>`;
             visibleItems.add(item);
         });
+    } else if (selectedFilter === "cityWise" || selectedFilter === "cityWiseRed" || selectedFilter === "cityWiseGreen") {
+        const cityStatus = selectedFilter === "cityWiseRed" ? "red" : (selectedFilter === "cityWiseGreen" ? "green" : "all");
+        const cityLabel = selectedFilter === "cityWiseRed" ? "City Wise Red Zone" : (selectedFilter === "cityWiseGreen" ? "City Wise Completed" : "City Wise");
+        const cityReport = getCityWiseSummary(cityStatus, selectedItems);
+        cityReport.visibleItems.forEach(item => visibleItems.add(item));
+        rowsHtml = renderCityWisePivotRows(cityReport);
     } else {
         // --- Customer Table Rendering (QTY-based) ---
         Object.entries(customerTargets).forEach(([customerCode, customer]) => {
@@ -1199,7 +1504,7 @@ if (
             let allCompleted=true, anyAchieved=false;
 
             Object.entries(customer.items).forEach(([item, targetQty]) => {
-                if(selectedItem!=="all" && selectedItem!==item) return;
+                if(!itemFilterAllows(item, selectedItems)) return;
 
                 const matchingInvoices = invoices.filter(inv =>
                     inv.customerCode?.toUpperCase() === customerCode.toUpperCase() &&
@@ -1318,25 +1623,10 @@ document.getElementById("overallBox").lastElementChild.innerText =
             window.valueBoxState = (window.valueBoxState+1)%3;
             updateValueBox();
         };
-    }
+    }    // --- Update Item Filter ---
+    updateItemFilterOptions(selectedFilter === "nonProductive" ? new Set() : visibleItems);
 
-    // --- Update Item Filter ---
-    const itemFilter = document.getElementById("itemFilter");
-    if(itemFilter){
-        const currentValue = itemFilter.value;
-// If Non Productive filter → no items should appear  
-if (selectedFilter === "nonProductive") {
-    itemFilter.innerHTML = `<option value="all">📦 All Items</option>`;
-    itemFilter.value = "all";
-    return;
-}
-
-        const sortedItems = Array.from(visibleItems).sort();
-        itemFilter.innerHTML = `<option value="all">📦 All Items</option>` + sortedItems.map(it=>`<option value="${it}">${it}</option>`).join("");
-        if([...sortedItems,"all"].includes(currentValue)) itemFilter.value=currentValue;
-    }
-
-   // --- Breaking News (Allocation jaisa style) ---
+   // --- Breaking News
 const breakingNews = document.getElementById("breakingNews");
 if (breakingNews) {
     if (zeroAchieveCustomers.length > 0) {
@@ -1398,7 +1688,7 @@ if (breakingNews) {
 // --- Popup function ---
 function showFilteredPopup() {
     const selectedStatus = document.getElementById("statusFilter").value;
-    const selectedItemValue = document.getElementById("itemFilter").value;
+    const selectedPopupItems = getSelectedItems();
 
     // --- Compute Top 10 Customers by totalTarget ---
     let customerTotals = Object.entries(customerTargets).map(([code, cust]) => {
@@ -1427,7 +1717,13 @@ function showFilteredPopup() {
 
     let popupThead = ""; // dynamic header
 
-   if (
+   if (selectedStatus === "cityWise" || selectedStatus === "cityWiseRed" || selectedStatus === "cityWiseGreen") {
+        const cityStatus = selectedStatus === "cityWiseRed" ? "red" : (selectedStatus === "cityWiseGreen" ? "green" : "all");
+        const cityLabel = selectedStatus === "cityWiseRed" ? "City Wise Red Zone" : (selectedStatus === "cityWiseGreen" ? "City Wise Completed" : "City Wise");
+        const cityReport = getCityWiseSummary(cityStatus, selectedPopupItems);
+        popupThead = renderCityWisePivotHead(cityReport);
+        popupRows = renderCityWisePivotRows(cityReport);
+    } else if (
     selectedStatus === "itemSummary" ||
     selectedStatus === "nonProductiveItemSummary"
 ) {
@@ -1478,7 +1774,7 @@ function showFilteredPopup() {
             </thead>
         `;
 
-        Object.entries(itemSummary).forEach(([item, data]) => {
+        Object.entries(itemSummary).sort((a, b) => a[0].localeCompare(b[0])).forEach(([item, data]) => {
            // 🚫 Non Productive Item Summary (Popup)
 if (
     selectedStatus === "nonProductiveItemSummary" &&
@@ -1486,7 +1782,7 @@ if (
     data.totalAchieved > 0
 ) return;
 
-            if (selectedItemValue !== "all" && selectedItemValue !== item) return;
+            if (!itemFilterAllows(item, selectedPopupItems)) return;
 
             const percentage = data.totalTarget > 0 ? ((data.totalAchieved / data.totalTarget) * 100).toFixed(1) : 0;
             let rowClass = customerShades[customerIndex % customerShades.length];
@@ -1545,7 +1841,7 @@ if (
             let customerHasRow = false;
 
             Object.entries(customer.items).forEach(([item, target]) => {
-                if (selectedItemValue !== "all" && selectedItemValue !== item) return;
+                if (!itemFilterAllows(item, selectedPopupItems)) return;
 
                 const achieved = invoices
                     .filter(inv =>
@@ -1633,7 +1929,10 @@ popupRows += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:t
  let summaryRow = "";
 
 // 🔵 ITEM SUMMARY POPUP
-if (
+if (selectedStatus === "cityWise" || selectedStatus === "cityWiseRed" || selectedStatus === "cityWiseGreen") {
+    summaryRow = "";
+}
+else if (
     selectedStatus === "itemSummary" ||
     selectedStatus === "nonProductiveItemSummary"
 ) {
