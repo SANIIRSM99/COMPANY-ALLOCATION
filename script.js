@@ -106,7 +106,7 @@ function processCSV(text, onDone) {
           )
         : rows;
 
-    const mapped = filtered.map((row) => ({
+    const mapMainRow = (row) => ({
         City: row[0] || "",
         CustomerCode: (row[1] || "").trim().toUpperCase(),
         Customer: row[2] || "",
@@ -122,13 +122,16 @@ function processCSV(text, onDone) {
         Value: parseFloat((row[12] || "0").replace(/,/g, "")) || 0,
         Date: row[13] || "",
         ItemRate: parseFloat((row[14] || "0").replace(/,/g, "")) || 0
-    }));
+    });
+    const mappedAllRows = rows.map(mapMainRow);
+    const mapped = filtered.map(mapMainRow);
 
     console.log("✅ Total CSV Rows:", lines.length);
     console.log("✅ Filtered Rows (after user filter):", filtered.length);
     console.log("✅ Final Mapped Rows:", mapped.length);
 
-    allCSVData = mapped; // ✅ Save globally
+    localStorage.setItem("excelDataAll", JSON.stringify(mappedAllRows));
+    allCSVData = mapped; // Save visible rows globally
 
     // ✅ Invoices = Achieve > 0 rows
     invoices = mapped
@@ -165,7 +168,8 @@ function processCSV(text, onDone) {
    if (onDone) onDone(mapped);
 
 // ✅ Create a unique hash from current data to detect duplicate uploads
-const currentHash = btoa(JSON.stringify(mapped)).slice(0, 100);
+const uploadRows = loggedUpper === "ADMIN" ? mappedAllRows : mapped;
+const currentHash = btoa(JSON.stringify(uploadRows)).slice(0, 100);
 const lastMeta = JSON.parse(localStorage.getItem("lastCsvMeta") || "{}");
 const loggedUser = getLoggedUser() || "UNKNOWN_USER";
 
@@ -187,7 +191,7 @@ if (lastMeta.hash === currentHash && lastMeta.user === loggedUser) {
   }));
 
   // ✅ Upload processed data to Realtime DB
-  saveCSVToFirebase(mapped);
+  saveCSVToFirebase(uploadRows);
 
   // ✅ Optional: upload raw file (only if available)
   try {
@@ -221,7 +225,7 @@ function getActiveDataUser() {
   const logged = (getLoggedUser() || "").toString().trim().toUpperCase();
   if (logged === "ADMIN" && typeof document !== "undefined") {
     const selected = (document.getElementById("userSelect")?.value || "").toString().trim().toUpperCase();
-    if (selected && selected !== "ALL") {
+    if (selected) {
       localStorage.setItem("activeDataUser", selected);
       return selected;
     }
@@ -261,6 +265,7 @@ function saveCSVToFirebase(data) {
       rows: data
     };
 
+
     const targetUploadUser = getActiveDataUser() || loggedUser.toUpperCase();
     const url = `${DATABASE_URL}/csvUploads/${targetUploadUser}/latest.json`;
 
@@ -296,40 +301,93 @@ async function deleteUserData(userToDelete) {
     }
 
     userToDelete = (userToDelete || "").toString().trim().toUpperCase();
-    if (!userToDelete || userToDelete === "ALL" || userToDelete === "ADMIN") {
+    if (!userToDelete || userToDelete === "ADMIN") {
         alert("Please select a valid user to delete.");
         return;
     }
 
-    if (!confirm(`Are you sure you want to DELETE all Firebase data of: ${userToDelete}?`)) {
+    const isAllDelete = userToDelete === "ALL";
+    const confirmText = isAllDelete
+        ? "Are you sure you want to DELETE ALL central Firebase upload data? User wise data will remain unless you delete each user."
+        : `Are you sure you want to DELETE all Firebase data of: ${userToDelete}?`;
+
+    if (!confirm(confirmText)) {
         return;
     }
 
     try {
-        const paths = [
-            `${DATABASE_URL}/csvUploads/${userToDelete}.json`,
-            `${DATABASE_URL}/mySales/${userToDelete}.json`,
-            `${DATABASE_URL}/csvUploads/${userToDelete}/mySales.json`
-        ];
+        const paths = isAllDelete
+            ? [
+                `${DATABASE_URL}/csvUploads/ALL.json`,
+                `${DATABASE_URL}/mySales/ALL.json`,
+                `${DATABASE_URL}/csvUploads/ALL/mySales.json`
+            ]
+            : [
+                `${DATABASE_URL}/csvUploads/${userToDelete}.json`,
+                `${DATABASE_URL}/mySales/${userToDelete}.json`,
+                `${DATABASE_URL}/csvUploads/${userToDelete}/mySales.json`
+            ];
         const results = await Promise.all(paths.map(url => fetch(url, { method: "DELETE" })));
         const failed = results.find(res => !res.ok);
         if (failed) throw new Error("Failed: " + failed.status);
 
-        if (getActiveDataUser() === userToDelete) {
+        if (!isAllDelete) {
+            await removeUserRowsFromAllUpload(userToDelete);
+        }
+
+        if (isAllDelete || getActiveDataUser() === userToDelete) {
             excelData = [];
             invoices = [];
             mySaleData = [];
             localStorage.removeItem("excelData");
+            localStorage.removeItem("excelDataAll");
             localStorage.removeItem("invoices");
             localStorage.removeItem("mySaleData");
+            localStorage.removeItem("lastCsvUploadRef");
             buildCustomerTargets();
             renderInvoiceTable();
             renderMySaleTable?.();
         }
-        alert(`Deleted Firebase data of ${userToDelete}`);
+        alert(isAllDelete ? "Deleted ALL central Firebase upload data" : `Deleted Firebase data of ${userToDelete}`);
     } catch (err) {
         console.error("Delete error:", err);
         alert("Error deleting data from Firebase!");
+    }
+}
+
+async function removeUserRowsFromAllUpload(userToDelete) {
+    try {
+        if (typeof DATABASE_URL !== "string" || !DATABASE_URL) return;
+        const cleanUser = (userToDelete || "").toString().trim().toUpperCase();
+        if (!cleanUser || cleanUser === "ALL" || cleanUser === "ADMIN") return;
+
+        const url = `${DATABASE_URL}/csvUploads/ALL/latest.json`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (!payload || !Array.isArray(payload.rows)) return;
+
+        const keptRows = payload.rows.filter(row => {
+            const user1 = (row.User1 || row.user1 || row.USER || row.user || "").toString().trim().toUpperCase();
+            const user2 = (row.User2 || row.user2 || "").toString().trim().toUpperCase();
+            return user1 !== cleanUser && user2 !== cleanUser;
+        });
+
+        if (keptRows.length === payload.rows.length) return;
+        const updatedPayload = {
+            ...payload,
+            rows: keptRows,
+            updatedAt: new Date().toISOString(),
+            updatedBy: getLoggedUser() || "ADMIN"
+        };
+
+        await fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedPayload)
+        });
+    } catch (err) {
+        console.warn("Could not remove user rows from ALL upload:", err);
     }
 }
 document.addEventListener("DOMContentLoaded", () => {
@@ -685,47 +743,57 @@ function applyTargetToAllZeroItems() {
 }
 
 function getRankDisplay(level) {
-  if (level === "Golden") return "🥇 Golden";
-  if (level === "Silver") return "🥈 Silver";
-  if (level === "Bronze") return "🥉 Bronze";
+  if (level === "Golden") return "Golden";
+  if (level === "Silver") return "Silver";
+  if (level === "Bronze") return "Bronze";
   return level || "";
 }
 
 function getRankColor(level) {
-  if (level === "Golden") return "#FFD700";
-  if (level === "Silver") return "#C0C0C0";
-  if (level === "Bronze") return "#CD7F32";
-  return "#4F46E5";
+  if (level === "Golden") return "#F59E0B";
+  if (level === "Silver") return "#94A3B8";
+  if (level === "Bronze") return "#B45309";
+  return "#2563EB";
 }
 
 function getCustomerRankings(sourceTargets = customerTargets) {
-  const allCustomers = Object.entries(sourceTargets || {}).map(([code, data]) => ({
-    code,
-    name: data.name || "Unknown",
-    itemsCount: Object.keys(data.items || {}).length
-  }));
-  const itemCountGroups = {};
-  allCustomers.forEach(cust => {
-    const count = cust.itemsCount;
-    if (!itemCountGroups[count]) itemCountGroups[count] = [];
-    itemCountGroups[count].push(cust);
+  const allCustomers = Object.entries(sourceTargets || {}).map(([code, data]) => {
+    const items = data.items || {};
+    const totalTargetQty = Object.values(items).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
+    const itemsCount = Object.keys(items).length;
+    const achievedValue = (invoices || [])
+      .filter(inv => inv.customerCode?.toUpperCase() === code.toUpperCase())
+      .reduce((sum, inv) => sum + ((Number(inv.quantity) || 0) * (Number(inv.rate) || 0)), 0);
+    return {
+      code,
+      name: data.name || "Unknown",
+      itemsCount,
+      totalTargetQty,
+      achievedValue,
+      rankScore: totalTargetQty + itemsCount + achievedValue
+    };
+  }).sort((a, b) =>
+    a.rankScore - b.rankScore ||
+    a.totalTargetQty - b.totalTargetQty ||
+    a.itemsCount - b.itemsCount ||
+    a.name.localeCompare(b.name)
+  );
+
+  const uniqueScores = [...new Set(allCustomers.map(cust => cust.rankScore))];
+  return allCustomers.map(cust => {
+    const groupIndex = uniqueScores.indexOf(cust.rankScore);
+    const fromTop = uniqueScores.length - 1 - groupIndex;
+    let level = `Rank ${groupIndex + 1}`;
+    if (fromTop === 0) level = "Golden";
+    else if (fromTop === 1) level = "Silver";
+    else if (fromTop === 2) level = "Bronze";
+    return {
+      ...cust,
+      level,
+      displayLevel: getRankDisplay(level),
+      levelColor: getRankColor(level)
+    };
   });
-  return Object.keys(itemCountGroups)
-    .map(Number)
-    .sort((a, b) => b - a)
-    .flatMap((count, index) => {
-      let level = "";
-      if (index === 0) level = "Golden";
-      else if (index === 1) level = "Silver";
-      else if (index === 2) level = "Bronze";
-      else level = `Level ${index - 2}`;
-      return itemCountGroups[count].map(cust => ({
-        ...cust,
-        level,
-        displayLevel: getRankDisplay(level),
-        levelColor: getRankColor(level)
-      }));
-    });
 }
 
 function populateRankFilter(rankedCustomers) {
@@ -733,12 +801,11 @@ function populateRankFilter(rankedCustomers) {
   if (!rankFilter) return;
   const current = rankFilter.value || "all";
   const levels = [...new Set((rankedCustomers || []).map(c => c.level).filter(Boolean))];
-  rankFilter.innerHTML = `<option value="all">🏅 All Ranks</option>` + levels
+  rankFilter.innerHTML = `<option value="all">All Ranks</option>` + levels
     .map(level => `<option value="${level}">${getRankDisplay(level)}</option>`)
     .join("");
   rankFilter.value = levels.includes(current) ? current : "all";
 }
-
 function getSelectedItems() {
   const checks = Array.from(document.querySelectorAll("#itemFilterMenu .item-filter-check"));
   const selected = checks.filter(ch => ch.checked).map(ch => ch.value);
@@ -1052,6 +1119,7 @@ function showMainPage() {
     document.getElementById('navMySale')?.classList.remove('bg-yellow-600', 'text-white');
 
     renderInvoiceTable();
+    setTimeout(showStartupSyncPrompt, 450);
 }
 
 function showAllocationPage() {
@@ -1350,40 +1418,7 @@ function renderInvoiceTable() {
                         <div class="filter-control">
                             <label>Filter by Rank</label>
                             <select id="rankFilter">
-                                <option value="all">🏅 All Ranks</option>
-                                <option value="Golden">🥇 Golden</option>
-                                <option value="Silver">🥈 Silver</option>
-                                <option value="Bronze">🥉 Bronze</option>
-                                <option value="Level 1">Level 1</option>
-<option value="Level 2">Level 2</option>
-<option value="Level 3">Level 3</option>
-<option value="Level 4">Level 4</option>
-<option value="Level 5">Level 5</option>
-<option value="Level 6">Level 6</option>
-<option value="Level 7">Level 7</option>
-<option value="Level 8">Level 8</option>
-<option value="Level 9">Level 9</option>
-<option value="Level 10">Level 10</option>
-<option value="Level 11">Level 11</option>
-<option value="Level 12">Level 12</option>
-<option value="Level 13">Level 13</option>
-<option value="Level 14">Level 14</option>
-<option value="Level 15">Level 15</option>
-<option value="Level 16">Level 16</option>
-<option value="Level 17">Level 17</option>
-<option value="Level 18">Level 18</option>
-<option value="Level 19">Level 19</option>
-<option value="Level 20">Level 20</option>
-<option value="Level 21">Level 21</option>
-<option value="Level 22">Level 22</option>
-<option value="Level 23">Level 23</option>
-<option value="Level 24">Level 24</option>
-<option value="Level 25">Level 25</option>
-<option value="Level 26">Level 26</option>
-<option value="Level 27">Level 27</option>
-<option value="Level 28">Level 28</option>
-<option value="Level 29">Level 29</option>
-<option value="Level 30">Level 30</option>
+                                <option value="all">All Ranks</option>
                             </select>
                         </div>
                     </div>
@@ -1467,7 +1502,7 @@ if (
 
             rowsHtml += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:text-sm">
                 <td class="border p-1 sm:p-2"></td>
-                <td class="border p-1 sm:p-2">${data.achievedCustomerCount} Productivity</td>
+                <td class="border p-1 sm:p-2">${data.achievedCustomerCount} Chali Gai</td>
                 <td class="border p-1 sm:p-2">${data.customerCount} Customers</td>
                 <td class="border p-1 sm:p-2">${item}</td>
                 <td class="border p-1 sm:p-2">${data.totalTargetQty.toLocaleString()}</td>
@@ -1633,7 +1668,7 @@ if (breakingNews) {
         breakingNews.innerHTML = `
             <marquee behavior="scroll" direction="left" scrollamount="5" class="flex items-center h-full">
                 ${zeroAchieveCustomers.map(customer => {
-                    // Rank/level dhoond lo (pehle se rankedCustomers mojood hai)
+                    // Rank dhoond lo (pehle se rankedCustomers mojood hai)
                     const rankInfo = rankedCustomers.find(rc => rc.code === customer.code);
                     const level = rankInfo?.displayLevel || rankInfo?.level || "Unknown";
 
@@ -1764,7 +1799,7 @@ function showFilteredPopup() {
                 <tr>
                     <th class="border p-2">Item</th>
                     <th class="border p-2">Customers</th>
-                    <th class="border p-2">Productivity</th>
+                    <th class="border p-2">Chali Gai</th>
                     <th class="border p-2">Target</th>
                     <th class="border p-2">Achieved</th>
                     <th class="border p-2">Remaining</th>
@@ -1951,39 +1986,6 @@ else if (
 
 // 🟢 CUSTOMER-BASED POPUP
 else {
-    let citySummaryRows = "";
-    if (selectedStatus === "red" || selectedStatus === "green") {
-        const cityRows = Object.entries(citySummary).sort((a, b) => b[1].value - a[1].value);
-        if (cityRows.length) {
-            citySummaryRows += `
-    <tr class="bg-slate-200 font-bold text-xs sm:text-sm">
-        <td colspan="9" class="border p-2 text-center">City Wise Report</td>
-    </tr>
-    <tr class="bg-slate-100 font-bold text-xs sm:text-sm">
-        <td class="border p-2">City</td>
-        <td class="border p-2">Customers</td>
-        <td class="border p-2">Items</td>
-        <td class="border p-2">Target</td>
-        <td class="border p-2">Achieved</td>
-        <td class="border p-2">Remaining</td>
-        <td colspan="2" class="border p-2">Status</td>
-        <td class="border p-2">Value</td>
-    </tr>`;
-            cityRows.forEach(([city, data]) => {
-                citySummaryRows += `
-    <tr class="bg-white text-xs sm:text-sm">
-        <td class="border p-2 font-semibold">${city}</td>
-        <td class="border p-2">${data.customers.size}</td>
-        <td class="border p-2">${data.items}</td>
-        <td class="border p-2">${data.target.toLocaleString()}</td>
-        <td class="border p-2">${data.achieved.toLocaleString()}</td>
-        <td class="border p-2">${data.remaining.toLocaleString()}</td>
-        <td colspan="2" class="border p-2">${selectedStatus === "red" ? "Red Zone" : "Completed"}</td>
-        <td class="border p-2 font-bold">${data.value.toLocaleString()}</td>
-    </tr>`;
-            });
-        }
-    }
     summaryRow = `
     <tr class="bg-indigo-100 font-bold text-xs sm:text-sm">
         <td colspan="4" class="border p-2 text-center">
@@ -1995,9 +1997,8 @@ else {
         <td class="border p-2">${totalRemaining}</td>
         <td class="border p-2">${calculateSmartPerformance()}%</td>
         <td class="border p-2">${totalValue.toLocaleString()}</td>
-    </tr>${citySummaryRows}`;
+    </tr>`;
 }
-
 
 
     let popup = document.getElementById("invoicePopup");
@@ -3286,48 +3287,116 @@ function renderMySaleTable() {
   mySaleData = JSON.parse(localStorage.getItem("mySaleData") || "[]");
   const salePage = document.getElementById("mySalePage");
   if (!salePage) return;
-  const tbody = salePage.querySelector("#mySaleTableBody");
-  const totalEl = salePage.querySelector("#mySaleTotal");
-  if (!tbody) return;
-  if (!mySaleData || mySaleData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="text-center p-2 text-gray-500">No data yet</td></tr>`;
-    if (totalEl) totalEl.textContent = "0";
-    return;
-  }
-  let rows = "";
+  const companyTbody = salePage.querySelector("#mySaleCompanyTableBody") || salePage.querySelector("#mySaleTableBody");
+  const dateTbody = salePage.querySelector("#mySaleDateTableBody");
+  const companyTotalEl = salePage.querySelector("#mySaleCompanyTotal") || salePage.querySelector("#mySaleTotal");
+  const dateTotalEl = salePage.querySelector("#mySaleDateTotal");
+  const legacyTotalEl = salePage.querySelector("#mySaleTotal");
+  setupMySaleDateInputs();
+
+  const rows = getMySaleRowsForSelectedDateRange();
+  const companyMap = {};
+  const dateMap = {};
   let grandTotal = 0;
-  const grouped = {};
-  const companyTotals = {};
-  mySaleData.map(normalizeSaleRecord)
-    .sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.summary || "").localeCompare(b.summary || ""))
-    .forEach(sale => {
-      const dateKey = sale.date || "No Date";
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(sale);
-      const companyKey = sale.company || sale.summary || "Unknown Company";
-      companyTotals[companyKey] = (companyTotals[companyKey] || 0) + (Number(sale.value) || 0);
-    });
-  Object.entries(grouped).forEach(([date, sales]) => {
-    let dateTotal = 0;
-    rows += `<tr class="bg-yellow-100 font-bold"><td colspan="4" class="border p-2">${escapeHtml(date)}</td></tr>`;
-    sales.forEach(sale => {
-      const v = Number(sale.value) || 0;
-      dateTotal += v;
-      grandTotal += v;
-      rows += `<tr><td class="border p-2">${escapeHtml(sale.summary)}</td><td class="border p-2">${escapeHtml(sale.company)}</td><td class="border p-2 text-right">${formatNumber(v)}</td><td class="border p-2 text-center">${escapeHtml(sale.date)}</td></tr>`;
-    });
-    rows += `<tr class="bg-gray-100 font-bold"><td colspan="2" class="border p-2 text-right">Date Total</td><td class="border p-2 text-right">${formatNumber(dateTotal)}</td><td class="border p-2 text-center">${escapeHtml(date)}</td></tr>`;
+
+  rows.map(normalizeSaleRecord).forEach(sale => {
+    const value = Number(sale.value) || 0;
+    const summary = sale.summary || "";
+    const company = sale.company || "Unknown Company";
+    const companyKey = `${summary}||${company}`;
+    if (!companyMap[companyKey]) companyMap[companyKey] = { summary, company, value: 0 };
+    companyMap[companyKey].value += value;
+
+    const dateKey = normalizeDateValue(sale.date) || "No Date";
+    if (!dateMap[dateKey]) dateMap[dateKey] = { date: dateKey, value: 0, companies: new Set() };
+    dateMap[dateKey].value += value;
+    dateMap[dateKey].companies.add(company);
+    grandTotal += value;
   });
-  rows += `<tr class="bg-blue-100 font-bold"><td colspan="4" class="border p-2">Company Wise Total</td></tr>`;
-  Object.entries(companyTotals).sort((a,b)=>b[1]-a[1]).forEach(([company,total]) => {
-    rows += `<tr class="bg-blue-50"><td colspan="2" class="border p-2">${escapeHtml(company)}</td><td class="border p-2 text-right font-bold">${formatNumber(total)}</td><td class="border p-2 text-center">1 to Today</td></tr>`;
-  });
-  tbody.innerHTML = rows;
-  if (totalEl) totalEl.textContent = formatNumber(grandTotal);
+
+  const companyRows = Object.values(companyMap)
+    .sort((a, b) => (a.summary || "").localeCompare(b.summary || "", undefined, { numeric: true }) || a.company.localeCompare(b.company));
+  const dateRows = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+
+  if (companyTbody) {
+    companyTbody.innerHTML = companyRows.length
+      ? companyRows.map(row => `<tr>
+          <td class="border p-2">${escapeHtml(row.summary)}</td>
+          <td class="border p-2">${escapeHtml(row.company)}</td>
+          <td class="border p-2 text-right font-semibold">${formatNumber(row.value)}</td>
+        </tr>`).join("")
+      : `<tr><td colspan="3" class="text-center p-3 text-gray-500">No company wise sale found</td></tr>`;
+  }
+
+  if (dateTbody) {
+    dateTbody.innerHTML = dateRows.length
+      ? dateRows.map(row => `<tr>
+          <td class="border p-2">${escapeHtml(row.date)}</td>
+          <td class="border p-2 text-right font-semibold">${formatNumber(row.value)}</td>
+          <td class="border p-2 text-center">${formatNumber(row.companies.size)}</td>
+        </tr>`).join("")
+      : `<tr><td colspan="3" class="text-center p-3 text-gray-500">No date wise sale found</td></tr>`;
+  }
+
+  if (companyTotalEl) companyTotalEl.textContent = formatNumber(grandTotal);
+  if (dateTotalEl) dateTotalEl.textContent = formatNumber(grandTotal);
+  if (legacyTotalEl) legacyTotalEl.textContent = formatNumber(grandTotal);
 }
 
 function formatNumber(n){ return Number(n).toLocaleString(); }
 function escapeHtml(s){ return (s===undefined || s===null) ? "" : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function getMonthStartToTodayRange() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  return {
+    from: formatLocalDateInput(firstDay),
+    to: formatLocalDateInput(now)
+  };
+}
+function formatLocalDateInput(date) {
+  const local = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+  return local.toISOString().slice(0, 10);
+}
+function setupMySaleDateInputs() {
+  const fromEl = document.getElementById("mySaleDateFrom");
+  const toEl = document.getElementById("mySaleDateTo");
+  const defaults = getMonthStartToTodayRange();
+  if (!fromEl || !toEl) return defaults;
+  if (!fromEl.value) fromEl.value = localStorage.getItem("mySaleDateFrom") || defaults.from;
+  if (!toEl.value) toEl.value = localStorage.getItem("mySaleDateTo") || defaults.to;
+  localStorage.setItem("mySaleDateFrom", fromEl.value);
+  localStorage.setItem("mySaleDateTo", toEl.value);
+  return { from: fromEl.value, to: toEl.value };
+}
+function getMySaleRowsForSelectedDateRange() {
+  const range = setupMySaleDateInputs();
+  const fromTime = range.from ? Date.parse(range.from) : -Infinity;
+  const toTime = range.to ? Date.parse(range.to) : Infinity;
+  return (mySaleData || []).filter(sale => {
+    const date = normalizeDateValue(sale.date);
+    if (!date) return true;
+    const saleTime = Date.parse(date);
+    if (isNaN(saleTime)) return true;
+    return saleTime >= fromTime && saleTime <= toTime;
+  });
+}
+function applyMySaleDateFilter() {
+  const fromEl = document.getElementById("mySaleDateFrom");
+  const toEl = document.getElementById("mySaleDateTo");
+  if (fromEl?.value) localStorage.setItem("mySaleDateFrom", fromEl.value);
+  if (toEl?.value) localStorage.setItem("mySaleDateTo", toEl.value);
+  renderMySaleTable();
+}
+function resetMySaleDateFilter() {
+  const defaults = getMonthStartToTodayRange();
+  localStorage.setItem("mySaleDateFrom", defaults.from);
+  localStorage.setItem("mySaleDateTo", defaults.to);
+  const fromEl = document.getElementById("mySaleDateFrom");
+  const toEl = document.getElementById("mySaleDateTo");
+  if (fromEl) fromEl.value = defaults.from;
+  if (toEl) toEl.value = defaults.to;
+  renderMySaleTable();
+}
 function normalizeDateValue(value) {
   const raw = (value || "").toString().trim();
   if (!raw) return "";
@@ -3730,6 +3799,77 @@ function parseSafeFloat(v) {
   return isNaN(n) ? 0 : n;
 }
 
+function normalizeMainRow(row) {
+  return {
+    City: row.City || "",
+    CustomerCode: (row.CustomerCode || "").toString().trim().toUpperCase(),
+    Customer: row.Customer || "",
+    Item1: (row.Item1 || "").toString().trim().toUpperCase(),
+    Target1: parseSafeInt(row.Target1),
+    Achieve1: parseSafeInt(row.Achieve1),
+    User1: (row.User1 || "").toString().trim().toUpperCase(),
+    User2: (row.User2 || "").toString().trim().toUpperCase(),
+    DealQty: parseSafeInt(row.DealQty),
+    DealBonus: parseSafeInt(row.DealBonus),
+    SummaryNumber: row.SummaryNumber || "",
+    CompanyName: row.CompanyName || "",
+    Value: parseSafeFloat(row.Value),
+    Date: row.Date || "",
+    ItemRate: parseSafeFloat(row.ItemRate)
+  };
+}
+
+function getRowUsers(row) {
+  return [...new Set([row.User1, row.User2]
+    .map(user => (user || "").toString().trim().toUpperCase())
+    .filter(user => user && user !== "ADMIN" && user !== "ALL"))];
+}
+
+function filterRowsForUser(rows, user) {
+  const cleanUser = (user || "").toString().trim().toUpperCase();
+  const cleanRows = (rows || []).map(normalizeMainRow);
+  if (!cleanUser || cleanUser === "ADMIN" || cleanUser === "ALL") return cleanRows;
+  return cleanRows.filter(row => getRowUsers(row).includes(cleanUser));
+}
+
+function getUsersFromRows(rows) {
+  const users = new Set();
+  (rows || []).forEach(row => getRowUsers(row).forEach(user => users.add(user)));
+  return [...users].sort((a, b) => a.localeCompare(b));
+}
+
+async function putCsvRowsForUser(user, rows, uploadedBy) {
+  const cleanUser = (user || "").toString().trim().toUpperCase();
+  if (!cleanUser || typeof DATABASE_URL !== "string" || DATABASE_URL.length === 0) return false;
+  const payload = {
+    uploadedAt: new Date().toISOString(),
+    uploadedBy: uploadedBy || getLoggedUser() || cleanUser,
+    rows: rows.map(normalizeMainRow)
+  };
+  const url = `${DATABASE_URL}/csvUploads/${cleanUser}/latest.json`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error(`Upload failed for ${cleanUser}: ${res.status}`);
+  return true;
+}
+
+async function saveAdminFullCsvToFirebase(rows, loggedUser) {
+  const cleanRows = rows.map(normalizeMainRow);
+  await putCsvRowsForUser("ALL", cleanRows, loggedUser);
+  const users = getUsersFromRows(cleanRows);
+  for (const user of users) {
+    await putCsvRowsForUser(user, filterRowsForUser(cleanRows, user), loggedUser);
+  }
+  localStorage.setItem("excelDataAll", JSON.stringify(cleanRows));
+  localStorage.setItem("excelData", JSON.stringify(cleanRows));
+  localStorage.setItem("lastCsvUploadRef", `${DATABASE_URL}/csvUploads/ALL/latest.json`);
+  console.log(`Central CSV uploaded: ${cleanRows.length} rows, ${users.length} user copies.`);
+  return { rows: cleanRows.length, users: users.length };
+}
+
 // ----------------- SAVE (MERGE MODE -> keeps old Target1) -----------------
 async function saveCSVToFirebase(data) {
   try {
@@ -3751,6 +3891,11 @@ async function saveCSVToFirebase(data) {
       return;
     }
 
+    if (loggedUser.toString().trim().toUpperCase() === "ADMIN") {
+      const result = await saveAdminFullCsvToFirebase(data, loggedUser);
+      console.log(`Admin central upload complete: ${result.rows} rows / ${result.users} users.`);
+      return;
+    }
     const targetUploadUser = getActiveDataUser() || loggedUser.toUpperCase();
     const path = `csvUploads/${targetUploadUser}/latest`;
     const url = `${DATABASE_URL}/${path}.json`;
@@ -4112,6 +4257,64 @@ function syncSelectedUser() {
   }
 }
 
+let startupSyncPromptShown = false;
+
+function getSelectedSyncUserForPrompt() {
+  const ids = ["userSelect", "userFilter", "userDropdown", "userList", "user"];
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    const value = (el?.value || el?.options?.[el.selectedIndex]?.value || "").toString().trim();
+    if (value) return value.toUpperCase();
+  }
+  return "";
+}
+
+function showStartupSyncPrompt() {
+  if (startupSyncPromptShown || document.getElementById("startupSyncPrompt")) return;
+  if (!(getLoggedUser && getLoggedUser())) return;
+  startupSyncPromptShown = true;
+
+  const modal = document.createElement("div");
+  modal.id = "startupSyncPrompt";
+  modal.className = "startup-sync-overlay";
+  modal.innerHTML = `
+    <div class="startup-sync-card">
+      <h2>SYNC NOW</h2>
+      <p>Fresh Firebase data load karna hai? Yes press karen to selected user data abhi sync ho jayega.</p>
+      <div class="startup-sync-actions">
+        <button type="button" class="startup-sync-yes" id="startupSyncYes">Yes</button>
+        <button type="button" class="startup-sync-no" id="startupSyncNo">No</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  document.getElementById("startupSyncNo")?.addEventListener("click", close);
+  document.getElementById("startupSyncYes")?.addEventListener("click", () => {
+    const yesBtn = document.getElementById("startupSyncYes");
+    if (yesBtn) {
+      yesBtn.textContent = "Syncing...";
+      yesBtn.disabled = true;
+    }
+    const currentUser = (getLoggedUser() || "").toString().trim().toUpperCase();
+    const selected = getSelectedSyncUserForPrompt();
+    const finish = () => {
+      renderInvoiceTable?.();
+      renderMySaleTable?.();
+      close();
+    };
+    if (currentUser === "ADMIN" && selected) {
+      syncUserDataFromFirebase(() => {
+        syncMySaleFromFirebase?.(finish, selected);
+      }, selected);
+    } else {
+      syncUserDataFromFirebase(() => {
+        syncMySaleFromFirebase?.(finish);
+      });
+    }
+  });
+}
+
 
 /* ================================================================
    ✅ END Robust Sync System
@@ -4387,15 +4590,17 @@ function searchCustomerFromMain() {
 
   matches.forEach(c => {
     const div = document.createElement("div");
-    div.className = "p-2 hover:bg-teal-500 hover:text-white cursor-pointer";
+    div.className = "main-search-result";
     div.innerText = `${c.name} (${c.code}) - ${c.city}`;
 
     div.onclick = () => {
-      input.value = `${c.name} (${c.code})`;
+      input.value = "";
+      list.innerHTML = "";
       list.classList.add("hidden");
 
       // 🔗 LINK TO ALLOCATION PAGE
       openCustomerFromMain(c.code);
+      setTimeout(() => input.focus(), 0);
     };
 
     list.appendChild(div);
@@ -4408,3 +4613,10 @@ function openCustomerFromMain(customerCode) {
   // Allocation table render
   renderAllocationTables(customerCode);
 }
+
+
+
+
+
+
+
