@@ -1502,7 +1502,7 @@ if (
 
             rowsHtml += `<tr class="${rowClass} hover:bg-indigo-100 transition text-xs sm:text-sm">
                 <td class="border p-1 sm:p-2"></td>
-                <td class="border p-1 sm:p-2">${data.achievedCustomerCount} Chali Gai</td>
+                <td class="border p-1 sm:p-2">${data.achievedCustomerCount} Productivity</td>
                 <td class="border p-1 sm:p-2">${data.customerCount} Customers</td>
                 <td class="border p-1 sm:p-2">${item}</td>
                 <td class="border p-1 sm:p-2">${data.totalTargetQty.toLocaleString()}</td>
@@ -1799,7 +1799,7 @@ function showFilteredPopup() {
                 <tr>
                     <th class="border p-2">Item</th>
                     <th class="border p-2">Customers</th>
-                    <th class="border p-2">Chali Gai</th>
+                    <th class="border p-2">Productivity</th>
                     <th class="border p-2">Target</th>
                     <th class="border p-2">Achieved</th>
                     <th class="border p-2">Remaining</th>
