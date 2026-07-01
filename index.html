@@ -158,40 +158,37 @@
         <div id="hamburgerContainer" class="md:hidden mb-4">
           <button id="hamburger" class="text-2xl">☰</button>
         </div>
-<div id="invoiceEntry" class="flex justify-center mt-6">
-  <div class="bg-white p-8 rounded-2xl shadow-xl border border-gray-200 
-              hover:shadow-2xl transition-all duration-300 w-full max-w-3xl relative">
-<div class="relative mb-4">
-  <label class="font-bold text-sm">🔍 Search Customer</label>
-  <input
-    id="mainCustomerSearch"
-    type="text"
-    class="w-full p-2 border rounded"
-    placeholder="Search by Name or Code"
-    oninput="searchCustomerFromMain()"
-  />
-  <div
-    id="mainCustomerSuggestions"
-    class="absolute bg-white border w-full max-h-60 overflow-y-auto z-50 hidden">
-  </div>
-</div>
-
-   <!-- Version Badge -->
-    <div class="absolute top-4 right-4 bg-blue-600 text-white px-4 py-1 rounded-full shadow-md">
-      <h4 class="text-sm font-semibold">V <b>6.3.0.9</b></h4>
+<div id="invoiceEntry" class="app-hero">
+  <div class="app-hero-card">
+    <div class="app-hero-topline">
+      <div>
+        <p class="app-eyebrow">NOOR DISTRIBUTOR</p>
+        <h1>Allocation Dashboard</h1>
+      </div>
+      <div class="app-version-pill">
+        <span>Version</span>
+        <strong>6.3.2.0</strong>
+      </div>
     </div>
 
-    <!-- Heading -->
-    <h2 class="text-3xl font-extrabold mb-6 text-blue-700 flex items-center gap-3 
-               justify-center tracking-wide">
-      🧾 ALLOCATION DETAILS
-    </h2>
+    <p class="app-hero-copy">Search customer, check allocation, rank, target and sales performance in one place.</p>
 
+    <div class="main-search-panel">
+      <label for="mainCustomerSearch">Search Customer</label>
+      <div class="main-search-box">
+        <span class="main-search-icon">Search</span>
+        <input
+          id="mainCustomerSearch"
+          type="text"
+          placeholder="Search by customer name or code"
+          oninput="searchCustomerFromMain()"
+        />
+      </div>
+      <div id="mainCustomerSuggestions" class="main-search-suggestions hidden"></div>
+    </div>
   </div>
 </div>
-
-
-     <!-- Breaking News -->
+<!-- Breaking News -->
 <div id="breakingNews" class="relative overflow-hidden h-10 font-semibold text-sm rounded-lg shadow-lg mb-6
             bg-gradient-to-r from-red-600 via-yellow-400 to-red-600 border border-red-700">
 
@@ -375,7 +372,7 @@ document.getElementById("dashboardContainer").innerHTML = `
 <script>
 document.getElementById("userSelect").addEventListener("change", function () {
     if (this.value === "ALL") {
-        window.open("https://saniirsm99.github.io/NDALLOCATION/", "_blank");
+        setActiveDataUser?.("ALL");
     }
 });
 </script>
@@ -819,56 +816,14 @@ modal.addEventListener('click', (e) => {
 
   <div class="mb-4 bg-white rounded-xl shadow p-4">
     <h3 class="font-bold text-gray-800 mb-3">Manual Sale Entry</h3>
-
     <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
-        <input id="manualSaleNumber"
-               class="border rounded-lg px-3 py-2"
-               placeholder="Serial / Company Number">
-
-        <input id="manualSaleCompany"
-               class="border rounded-lg px-3 py-2 bg-gray-100"
-               placeholder="Company"
-               readonly>
-
-        <input id="manualSaleValue"
-               type="number"
-               step="any"
-               class="border rounded-lg px-3 py-2"
-               placeholder="Sale Value">
-
-        <input id="manualSaleDate"
-               type="date"
-               class="border rounded-lg px-3 py-2">
-
-        <button onclick="addManualSale()"
-                class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg px-4 py-2">
-            Add Sale
-        </button>
+      <input id="manualSaleNumber" class="border rounded-lg px-3 py-2" placeholder="Serial / Company Number">
+      <input id="manualSaleCompany" class="border rounded-lg px-3 py-2" placeholder="Company">
+      <input id="manualSaleValue" type="number" step="any" class="border rounded-lg px-3 py-2" placeholder="Sale Value">
+      <input id="manualSaleDate" type="date" class="border rounded-lg px-3 py-2">
+      <button onclick="addManualSale()" class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg px-4 py-2">Add Sale</button>
     </div>
-</div>
-
-<script>
-const companies = {
-    "001": "SMITH KLINE GSK",
-    "003": "SANOFI",
-    "004": "GALAXY",
-    "005": "ABBOTT LAB",
-    "006": "HILTON",
-    "008": "HIGHNOON",
-    "010": "SOLITE HEALTH CARE",
-    "011": "OTSUKA",
-    "012": "ABBOTT INST",
-    "014": "GSK CONSUMER",
-    "015": "CARE"
-};
-
-document.getElementById('manualSaleNumber').addEventListener('input', function () {
-    const code = this.value.trim();
-
-    document.getElementById('manualSaleCompany').value =
-        companies[code] || '';
-});
-</script>
+  </div>
   <!-- Upload CSV -->
   <div class="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
     <input type="file" id="saleCsvFile" accept=".csv" 
@@ -892,31 +847,70 @@ document.getElementById('manualSaleNumber').addEventListener('input', function (
     <h3 class="font-bold text-gray-800 mb-2">CSV Upload Detail</h3>
     <div id="saleUploadHistory" class="text-sm text-gray-700">No upload record</div>
   </div>
-  <!-- Table -->
-  <div class="scrollable-table bg-white rounded-xl shadow-lg overflow-x-auto">
-    <table class="min-w-full border text-sm sm:text-base">
-      <thead class="bg-yellow-300 text-yellow-900">
-        <tr>
-          <th class="border p-2 text-left">Company Number</th>
-          <th class="border p-2 text-left">Company</th>
-          <th class="border p-2 text-right">Sale</th>
-          <th class="border p-2 text-center">Til to Date</th>
-        </tr>
-      </thead>
-      <tbody id="mySaleTableBody" class="divide-y divide-gray-200">
-        <tr>
-          <td colspan="4" class="text-center p-3 text-gray-500">No data yet</td>
-        </tr>
-      </tbody>
-      <tfoot class="bg-gray-100 font-bold">
-        <tr>
-          <td colspan="2" class="border p-2 text-right">TOTAL SALE</td>
-          <td id="mySaleTotal" class="border p-2 text-right">0</td>
-          <td class="border p-2 text-center">-</td>
-        </tr>
-      </tfoot>
-    </table>
+  <div class="my-sale-filter-panel">
+    <div>
+      <h3 class="font-bold text-gray-800">Date Wise Filter</h3>
+      <p class="text-xs text-gray-500">Default range: month start to today</p>
+    </div>
+    <div class="my-sale-date-controls">
+      <label>From <input id="mySaleDateFrom" type="date"></label>
+      <label>To <input id="mySaleDateTo" type="date"></label>
+      <button onclick="applyMySaleDateFilter()" class="my-sale-action primary">Apply</button>
+      <button onclick="resetMySaleDateFilter()" class="my-sale-action">Reset</button>
+    </div>
   </div>
+
+  <div class="my-sale-table-stack">
+    <section class="my-sale-table-card">
+      <h3>Company Wise Sale</h3>
+      <div class="scrollable-table overflow-x-auto">
+        <table class="min-w-full border text-sm sm:text-base">
+          <thead class="bg-yellow-300 text-yellow-900">
+            <tr>
+              <th class="border p-2 text-left">Company Number</th>
+              <th class="border p-2 text-left">Company</th>
+              <th class="border p-2 text-right">Sale</th>
+            </tr>
+          </thead>
+          <tbody id="mySaleCompanyTableBody" class="divide-y divide-gray-200">
+            <tr><td colspan="3" class="text-center p-3 text-gray-500">No data yet</td></tr>
+          </tbody>
+          <tfoot class="bg-gray-100 font-bold">
+            <tr>
+              <td colspan="2" class="border p-2 text-right">TOTAL SALE</td>
+              <td id="mySaleCompanyTotal" class="border p-2 text-right">0</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="my-sale-table-card">
+      <h3>Date Wise Sale</h3>
+      <div class="scrollable-table overflow-x-auto">
+        <table class="min-w-full border text-sm sm:text-base">
+          <thead class="bg-cyan-100 text-cyan-900">
+            <tr>
+              <th class="border p-2 text-left">Date</th>
+              <th class="border p-2 text-right">Sale</th>
+              <th class="border p-2 text-center">Companies</th>
+            </tr>
+          </thead>
+          <tbody id="mySaleDateTableBody" class="divide-y divide-gray-200">
+            <tr><td colspan="3" class="text-center p-3 text-gray-500">No data yet</td></tr>
+          </tbody>
+          <tfoot class="bg-gray-100 font-bold">
+            <tr>
+              <td class="border p-2 text-right">TOTAL SALE</td>
+              <td id="mySaleDateTotal" class="border p-2 text-right">0</td>
+              <td class="border p-2 text-center">-</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  </div>
+  <table class="hidden"><tbody id="mySaleTableBody"></tbody><tfoot><tr><td id="mySaleTotal">0</td></tr></tfoot></table>
 </div>
 
   <!-- Reset App Modal -->
@@ -984,3 +978,4 @@ document.getElementById('manualSaleNumber').addEventListener('input', function (
   <script src="script.js"></script>
 </body>
 </html>
+
