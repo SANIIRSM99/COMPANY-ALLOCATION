@@ -814,16 +814,58 @@ modal.addEventListener('click', (e) => {
   </div>
 
 
-  <div class="mb-4 bg-white rounded-xl shadow p-4">
+ <div class="mb-4 bg-white rounded-xl shadow p-4">
     <h3 class="font-bold text-gray-800 mb-3">Manual Sale Entry</h3>
+
     <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
-      <input id="manualSaleNumber" class="border rounded-lg px-3 py-2" placeholder="Serial / Company Number">
-      <input id="manualSaleCompany" class="border rounded-lg px-3 py-2" placeholder="Company">
-      <input id="manualSaleValue" type="number" step="any" class="border rounded-lg px-3 py-2" placeholder="Sale Value">
-      <input id="manualSaleDate" type="date" class="border rounded-lg px-3 py-2">
-      <button onclick="addManualSale()" class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg px-4 py-2">Add Sale</button>
+        <input id="manualSaleNumber"
+               class="border rounded-lg px-3 py-2"
+               placeholder="Serial / Company Number">
+
+        <input id="manualSaleCompany"
+               class="border rounded-lg px-3 py-2 bg-gray-100"
+               placeholder="Company"
+               readonly>
+
+        <input id="manualSaleValue"
+               type="number"
+               step="any"
+               class="border rounded-lg px-3 py-2"
+               placeholder="Sale Value">
+
+        <input id="manualSaleDate"
+               type="date"
+               class="border rounded-lg px-3 py-2">
+
+        <button onclick="addManualSale()"
+                class="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg px-4 py-2">
+            Add Sale
+        </button>
     </div>
-  </div>
+</div>
+
+<script>
+const companies = {
+    "001": "SMITH KLINE GSK",
+    "003": "SANOFI",
+    "004": "GALAXY",
+    "005": "ABBOTT LAB",
+    "006": "HILTON",
+    "008": "HIGHNOON",
+    "010": "SOLITE HEALTH CARE",
+    "011": "OTSUKA",
+    "012": "ABBOTT INST",
+    "014": "GSK CONSUMER",
+    "015": "CARE"
+};
+
+document.getElementById('manualSaleNumber').addEventListener('input', function () {
+    const code = this.value.trim();
+
+    document.getElementById('manualSaleCompany').value =
+        companies[code] || '';
+});
+</script>
   <!-- Upload CSV -->
   <div class="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
     <input type="file" id="saleCsvFile" accept=".csv" 
