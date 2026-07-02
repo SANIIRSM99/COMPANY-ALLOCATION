@@ -1119,7 +1119,7 @@ function showMainPage() {
     document.getElementById('navMySale')?.classList.remove('bg-yellow-600', 'text-white');
 
     renderInvoiceTable();
-    setTimeout(showStartupSyncPrompt, 450);
+    setTimeout(showStartupSyncPrompt, 60);
 }
 
 function showAllocationPage() {
@@ -1228,6 +1228,7 @@ function login() {
         passwordInput.value = '';
         initSidebarNav();
         renderInvoiceTable();
+        setTimeout(showStartupSyncPrompt, 60);
     } else {
         loginError.classList.remove('hidden');
         loginError.textContent = 'Invalid credentials!';
@@ -3296,7 +3297,7 @@ function renderMySaleTable() {
 
   const rows = getMySaleRowsForSelectedDateRange();
   const companyMap = {};
-  const dateMap = {};
+  const dateCompanyMap = {};
   let grandTotal = 0;
 
   rows.map(normalizeSaleRecord).forEach(sale => {
@@ -3308,15 +3309,16 @@ function renderMySaleTable() {
     companyMap[companyKey].value += value;
 
     const dateKey = normalizeDateValue(sale.date) || "No Date";
-    if (!dateMap[dateKey]) dateMap[dateKey] = { date: dateKey, value: 0, companies: new Set() };
-    dateMap[dateKey].value += value;
-    dateMap[dateKey].companies.add(company);
+    const dateCompanyKey = `${dateKey}||${company}`;
+    if (!dateCompanyMap[dateCompanyKey]) dateCompanyMap[dateCompanyKey] = { date: dateKey, company, value: 0 };
+    dateCompanyMap[dateCompanyKey].value += value;
     grandTotal += value;
   });
 
   const companyRows = Object.values(companyMap)
     .sort((a, b) => (a.summary || "").localeCompare(b.summary || "", undefined, { numeric: true }) || a.company.localeCompare(b.company));
-  const dateRows = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+  const dateRows = Object.values(dateCompanyMap)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.company.localeCompare(b.company));
 
   if (companyTbody) {
     companyTbody.innerHTML = companyRows.length
@@ -3332,8 +3334,8 @@ function renderMySaleTable() {
     dateTbody.innerHTML = dateRows.length
       ? dateRows.map(row => `<tr>
           <td class="border p-2">${escapeHtml(row.date)}</td>
+          <td class="border p-2">${escapeHtml(row.company)}</td>
           <td class="border p-2 text-right font-semibold">${formatNumber(row.value)}</td>
-          <td class="border p-2 text-center">${formatNumber(row.companies.size)}</td>
         </tr>`).join("")
       : `<tr><td colspan="3" class="text-center p-3 text-gray-500">No date wise sale found</td></tr>`;
   }
@@ -3347,10 +3349,10 @@ function formatNumber(n){ return Number(n).toLocaleString(); }
 function escapeHtml(s){ return (s===undefined || s===null) ? "" : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function getMonthStartToTodayRange() {
   const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const today = formatLocalDateInput(now);
   return {
-    from: formatLocalDateInput(firstDay),
-    to: formatLocalDateInput(now)
+    from: today,
+    to: today
   };
 }
 function formatLocalDateInput(date) {
@@ -3362,10 +3364,8 @@ function setupMySaleDateInputs() {
   const toEl = document.getElementById("mySaleDateTo");
   const defaults = getMonthStartToTodayRange();
   if (!fromEl || !toEl) return defaults;
-  if (!fromEl.value) fromEl.value = localStorage.getItem("mySaleDateFrom") || defaults.from;
-  if (!toEl.value) toEl.value = localStorage.getItem("mySaleDateTo") || defaults.to;
-  localStorage.setItem("mySaleDateFrom", fromEl.value);
-  localStorage.setItem("mySaleDateTo", toEl.value);
+  if (!fromEl.value) fromEl.value = defaults.from;
+  if (!toEl.value) toEl.value = defaults.to;
   return { from: fromEl.value, to: toEl.value };
 }
 function getMySaleRowsForSelectedDateRange() {
@@ -3463,6 +3463,37 @@ async function saveMySaleToFirebase() {
     }));
   } catch (err) { console.error("My Sale Firebase save failed:", err); }
 }
+function getSaleRowsFromMainRows(rows) {
+  const saleMap = {};
+  (rows || []).map(normalizeMainRow).forEach(row => {
+    const value = Number(row.Value) || 0;
+    const summary = (row.SummaryNumber || "").toString().trim();
+    const company = (row.CompanyName || "").toString().trim();
+    const user = (row.User1 || row.User2 || "").toString().trim().toUpperCase();
+    if (!user || user === "ADMIN" || user === "ALL" || !summary || !value) return;
+    const date = normalizeDateValue(row.Date) || new Date().toISOString().slice(0, 10);
+    const key = `${user}|${date}|${summary}|${company}`;
+    if (!saleMap[key]) saleMap[key] = { summary, company, value: 0, date, user };
+    saleMap[key].value += value;
+  });
+  return Object.values(saleMap);
+}
+async function saveMainCsvSalesToFirebase(rows, uploadedBy) {
+  const saleRows = getSaleRowsFromMainRows(rows);
+  if (!saleRows.length) return { rows: 0, users: 0 };
+  const previous = JSON.parse(localStorage.getItem("mySaleData") || "[]");
+  upsertLocalSaleRecords(saleRows);
+  await saveMySaleToFirebase();
+  const users = [...new Set(saleRows.map(row => row.user).filter(Boolean))];
+  addSaleUploadHistory("main_csv_sales", saleRows);
+  console.log(`Main CSV sales saved by ${uploadedBy || getLoggedUser() || "ADMIN"}: ${saleRows.length} rows / ${users.length} users.`);
+  if ((getActiveDataUser() || "").toString().trim().toUpperCase() === "ALL") {
+    mySaleData = JSON.parse(localStorage.getItem("mySaleData") || "[]");
+  } else if (previous.length) {
+    mySaleData = JSON.parse(localStorage.getItem("mySaleData") || "[]");
+  }
+  return { rows: saleRows.length, users: users.length };
+}
 async function fetchMySalePayloadForUser(user) {
   for (const url of [`${DATABASE_URL}/mySales/${user}/latest.json`, `${DATABASE_URL}/csvUploads/${user}/mySales/latest.json`]) {
     try {
@@ -3474,18 +3505,65 @@ async function fetchMySalePayloadForUser(user) {
   }
   return null;
 }
+function collectMySaleRowsFromNode(node, output) {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node.rows)) {
+    output.push(...node.rows);
+    return;
+  }
+  Object.values(node).forEach(child => collectMySaleRowsFromNode(child, output));
+}
+async function fetchAllMySaleRows() {
+  const byKey = {};
+  const collectByUser = (json, nodeSelector) => {
+    if (!json || typeof json !== "object") return;
+    Object.entries(json).forEach(([user, node]) => {
+      const cleanUser = (user || "").toString().trim().toUpperCase();
+      if (!cleanUser || cleanUser === "ADMIN" || cleanUser === "ALL") return;
+      const saleNode = nodeSelector(node);
+      const rows = [];
+      collectMySaleRowsFromNode(saleNode, rows);
+      rows.forEach(row => {
+        const clean = normalizeSaleRecord({ ...row, user: row.user || cleanUser });
+        if (!clean.summary && !clean.company && !clean.value) return;
+        const key = `${clean.user}|${clean.date}|${clean.summary}|${clean.company}`;
+        byKey[key] = clean;
+      });
+    });
+  };
+
+  try {
+    const res = await fetch(`${DATABASE_URL}/mySales.json`);
+    if (res.ok) collectByUser(await res.json(), node => node);
+  } catch (err) {
+    console.warn("All My Sale /mySales fetch skipped:", err);
+  }
+
+  try {
+    const res = await fetch(`${DATABASE_URL}/csvUploads.json`);
+    if (res.ok) collectByUser(await res.json(), node => node?.mySales);
+  } catch (err) {
+    console.warn("All My Sale /csvUploads mySales fetch skipped:", err);
+  }
+  return Object.values(byKey);
+}
 async function syncMySaleFromFirebase(onDone, forceUser = null) {
   try {
     const currentUser = (getLoggedUser() || "").toString().trim().toUpperCase();
     if (!currentUser || typeof DATABASE_URL !== "string" || !DATABASE_URL) { renderMySaleTable(); if(onDone) onDone(mySaleData); return; }
     const targetUser = currentUser === "ADMIN" ? (forceUser || getActiveDataUser() || currentUser).toString().trim().toUpperCase() : currentUser;
-    const json = await fetchMySalePayloadForUser(targetUser);
-    if (json && Array.isArray(json.rows)) {
-      mySaleData = json.rows.map(normalizeSaleRecord);
+    if (currentUser === "ADMIN" && targetUser === "ALL") {
+      mySaleData = await fetchAllMySaleRows();
       localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
     } else {
-      mySaleData = [];
-      localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
+      const json = await fetchMySalePayloadForUser(targetUser);
+      if (json && Array.isArray(json.rows)) {
+        mySaleData = json.rows.map(normalizeSaleRecord);
+        localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
+      } else {
+        mySaleData = [];
+        localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
+      }
     }
   } catch (err) { console.warn("My Sale Firebase sync skipped:", err); }
   renderMySaleTable();
@@ -3863,6 +3941,7 @@ async function saveAdminFullCsvToFirebase(rows, loggedUser) {
   for (const user of users) {
     await putCsvRowsForUser(user, filterRowsForUser(cleanRows, user), loggedUser);
   }
+  await saveMainCsvSalesToFirebase(cleanRows, loggedUser);
   localStorage.setItem("excelDataAll", JSON.stringify(cleanRows));
   localStorage.setItem("excelData", JSON.stringify(cleanRows));
   localStorage.setItem("lastCsvUploadRef", `${DATABASE_URL}/csvUploads/ALL/latest.json`);
