@@ -589,10 +589,10 @@ modal.addEventListener('click', (e) => {
 
   <thead id="invoiceTableHead" class="bg-gray-200">
     <tr>
-      <th class="border p-2">City</th>
+      <th class="border p-2">Town</th>
       <th class="border p-2">Code</th>
-      <th class="border p-2">Cust</th>
-      <th class="border p-2">Item</th>
+      <th class="border p-2">Customer Name</th>
+      <th class="border p-2">Item Name</th>
       <th class="border p-2">Target</th>
       <th class="border p-2">Achieved</th>
       <th class="border p-2">Remaining</th>
@@ -814,7 +814,7 @@ modal.addEventListener('click', (e) => {
   </div>
 
 
- <div class="mb-4 bg-white rounded-xl shadow p-4">
+   <div class="mb-4 bg-white rounded-xl shadow p-4">
     <h3 class="font-bold text-gray-800 mb-3">Manual Sale Entry</h3>
 
     <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
@@ -934,8 +934,8 @@ document.getElementById('manualSaleNumber').addEventListener('input', function (
           <thead class="bg-cyan-100 text-cyan-900">
             <tr>
               <th class="border p-2 text-left">Date</th>
+              <th class="border p-2 text-left">Company</th>
               <th class="border p-2 text-right">Sale</th>
-              <th class="border p-2 text-center">Companies</th>
             </tr>
           </thead>
           <tbody id="mySaleDateTableBody" class="divide-y divide-gray-200">
@@ -944,8 +944,8 @@ document.getElementById('manualSaleNumber').addEventListener('input', function (
           <tfoot class="bg-gray-100 font-bold">
             <tr>
               <td class="border p-2 text-right">TOTAL SALE</td>
-              <td id="mySaleDateTotal" class="border p-2 text-right">0</td>
               <td class="border p-2 text-center">-</td>
+              <td id="mySaleDateTotal" class="border p-2 text-right">0</td>
             </tr>
           </tfoot>
         </table>
