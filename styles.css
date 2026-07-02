@@ -1331,3 +1331,107 @@ footer {
     padding-right: 8px;
   }
 }
+
+@media (max-width: 640px) {
+  #mainPage {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  #dashboardContainer {
+    width: 100%;
+  }
+
+  #summaryBox {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    padding: 8px !important;
+    border-radius: 8px !important;
+  }
+
+  #summaryBox > div {
+    min-width: 0;
+    padding: 10px 8px !important;
+    border-radius: 8px !important;
+  }
+
+  #summaryBox h3 {
+    font-size: 10px !important;
+    line-height: 1.2;
+    word-break: break-word;
+  }
+
+  #summaryBox .text-lg,
+  #summaryBox .text-xl {
+    font-size: 16px !important;
+    line-height: 1.2;
+  }
+
+  .app-hero {
+    margin-bottom: 10px;
+  }
+
+  .app-hero-card {
+    padding: 12px !important;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, .10);
+  }
+
+  .app-hero-copy {
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+
+  .main-search-panel,
+  .main-search-box,
+  .main-search-box input {
+    width: 100%;
+  }
+
+  .main-search-suggestions {
+    max-height: 220px;
+  }
+
+  #mainPage .mx-auto.mt-6.mb-4 {
+    margin-top: 10px !important;
+    padding: 8px !important;
+    border-radius: 8px !important;
+  }
+
+  #mainPage .mx-auto.mt-6.mb-4 .grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  #mainPage button {
+    min-height: 42px;
+    padding: 9px 8px !important;
+    font-size: 12px !important;
+    border-radius: 8px !important;
+  }
+
+  #invoiceTableHead th,
+  #invoiceTableBody td {
+    padding: 5px !important;
+    font-size: 11px !important;
+    line-height: 1.25;
+  }
+
+  .resizable-box,
+  #customerTableBox,
+  .customer-table,
+  .scrollable-table {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .my-sale-filter-panel {
+    align-items: stretch;
+  }
+
+  .my-sale-date-controls,
+  .my-sale-date-controls label,
+  .my-sale-date-controls input,
+  .my-sale-action {
+    width: 100%;
+  }
+}
