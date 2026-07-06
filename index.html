@@ -589,10 +589,10 @@ modal.addEventListener('click', (e) => {
 
   <thead id="invoiceTableHead" class="bg-gray-200">
     <tr>
-      <th class="border p-2">Town</th>
+      <th class="border p-2">City</th>
       <th class="border p-2">Code</th>
-      <th class="border p-2">Customer Name</th>
-      <th class="border p-2">Item Name</th>
+      <th class="border p-2">Cust</th>
+      <th class="border p-2">Item</th>
       <th class="border p-2">Target</th>
       <th class="border p-2">Achieved</th>
       <th class="border p-2">Remaining</th>
@@ -814,7 +814,7 @@ modal.addEventListener('click', (e) => {
   </div>
 
 
-   <div class="mb-4 bg-white rounded-xl shadow p-4">
+ <div class="mb-4 bg-white rounded-xl shadow p-4">
     <h3 class="font-bold text-gray-800 mb-3">Manual Sale Entry</h3>
 
     <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
@@ -998,6 +998,60 @@ document.getElementById('manualSaleNumber').addEventListener('input', function (
 
   </div>
 </footer>
+<div class="legal-link-bar">
+  <button type="button" onclick="showLegalPage('terms')">Terms and Conditions</button>
+  <button type="button" onclick="showLegalPage('privacy')">Privacy Policy</button>
+  <button type="button" onclick="showLegalPage('about')">About Me</button>
+</div>
+
+<div id="legalModal" class="legal-modal hidden">
+  <div class="legal-panel">
+    <div class="legal-panel-header">
+      <h2 id="legalModalTitle">Information</h2>
+      <button type="button" onclick="closeLegalPage()">Close</button>
+    </div>
+
+    <section id="legalTerms" class="legal-section hidden">
+      <h3>Terms and Conditions</h3>
+      <p>These Terms and Conditions explain the acceptable use of the Company Allocation application. By using this application, each user agrees to use it only for authorized business, allocation, target, achievement, sale, and reporting work connected with the organization.</p>
+      <p>The application is designed to help upload CSV data, synchronize Firebase records, view customer allocation reports, manage targets, review achieved quantities, and check My Sale summaries. Users must enter accurate data and must not intentionally upload false, duplicate, incomplete, or misleading information.</p>
+      <p>Admin access is a privileged role. The admin may upload central data, view combined data, synchronize all-user records, and delete Firebase data where required. This access must be used carefully because deleting or replacing data can affect reports for every user and device.</p>
+      <p>Non-admin users are expected to view and sync only their own assigned data. They must not attempt to access, alter, copy, delete, or misuse another user's information. Any shared device should be logged out after work is completed.</p>
+      <p>CSV files should follow the supported structure of the application. If a file contains target, achieve, value, date, company, summary number, user, item, or customer information, the user uploading it is responsible for checking that the columns are correct before synchronization.</p>
+      <p>Manual Sale and CSV Sale entries are treated as business records. Once synchronized, the data may become visible on other authorized devices depending on user and admin settings. Users should verify sale values before saving or syncing.</p>
+      <p>The application may store data locally in the browser and online in Firebase. Clearing browser storage, changing devices, resetting the app, or deleting Firebase records may remove visible data. Users should keep original CSV files and business backups where required.</p>
+      <p>The app is provided as an operational tool. Reports, totals, rankings, filters, and summaries should be reviewed by responsible staff before final business decisions are made. The developer is not responsible for incorrect decisions made from unchecked, wrongly uploaded, or outdated data.</p>
+      <p>Unauthorized modification, resale, copying, reverse engineering, or redistribution of this application is not allowed without permission from the owner/developer. The design, workflow, and implementation are intended for the approved business environment.</p>
+      <p>These terms may be updated when the app is improved, when Firebase structure changes, or when new business workflows are added. Continued use of the application means the user accepts the latest terms included in the app.</p>
+    </section>
+
+    <section id="legalPrivacy" class="legal-section hidden">
+      <h3>Privacy Policy</h3>
+      <p>This Privacy Policy describes how this Company Allocation application handles information entered, uploaded, synchronized, stored, and displayed during normal use.</p>
+      <p>The app may process business data such as user names, customer codes, customer names, cities, item names, targets, achievements, values, dates, company names, summary numbers, sale values, bonus deal values, and upload history. This information is used only for allocation, reporting, synchronization, and business review inside the app.</p>
+      <p>Data may be stored in the browser's local storage to keep the app usable on the same device. This can include logged-in user status, selected user, uploaded CSV data, invoices, My Sale records, filters, targets, and cached report data. Anyone with access to the same browser profile may be able to see locally stored data.</p>
+      <p>When sync features are used, data may be sent to Firebase Realtime Database. Firebase records allow multiple devices to receive updated user data, central admin data, My Sale records, target settings, and other synchronized information. Users should sync only on trusted networks and devices.</p>
+      <p>Admin users may access wider records than normal users. This includes central uploads and all-user views where enabled. Non-admin users should normally receive only their own filtered records based on the user columns in the CSV or saved Firebase path.</p>
+      <p>The application does not intentionally collect personal information for marketing, advertising, or third-party sale. The data is business-operational data entered by the organization and its users. The developer does not use this information for unrelated commercial tracking.</p>
+      <p>Firebase security and access depend on the connected Firebase project and its rules. The organization should keep Firebase credentials, database rules, and admin access protected. Weak rules or shared credentials can expose data outside the intended users.</p>
+      <p>Delete and reset functions can remove local and/or Firebase data. Before deleting records, users should confirm the selected user or ALL data option carefully. Deleted data may not be recoverable unless a separate backup exists.</p>
+      <p>Users should avoid uploading sensitive personal documents, private identity information, passwords, or unrelated personal data into CSV files. Only business fields needed for allocation, sale, target, and reporting should be uploaded.</p>
+      <p>By using this application, users understand that data accuracy depends on correct CSV formatting, correct user names, careful manual entry, and successful synchronization. Users should verify important reports against original business records when needed.</p>
+    </section>
+
+    <section id="legalAbout" class="legal-section hidden">
+      <div class="about-profile">
+        <img src="assets/sani-hashmi.jpg" alt="Sani Hashmi">
+        <div>
+          <h3>About Me</h3>
+          <p>My name is Sani Hashmi. I am an AI, Graphic Designer and SEO Expert.</p>
+          <p>This app was created by Sani Hashmi from Noor Distributor with the help of AI Codex. It was built to support company allocation, user-wise sync, Firebase data flow, target tracking, achievement reports, and My Sale reporting in a practical business workflow.</p>
+          <p>The goal of this app is to make daily allocation work faster, cleaner, and easier to review on both desktop and mobile devices.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
   <script type="module" src="script.js"></script>
 <!-- Firebase App (Base SDK) -->
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
