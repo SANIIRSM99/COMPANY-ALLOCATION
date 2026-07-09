@@ -1,6 +1,6 @@
 const demoUsers = [
    "ADMIN", "ALL", "KHALID", "ASIF", "MUZAMMIL", "HAIDER", "IMRAN", "WAQAS", "MURTAZA", "YOUSAF", "AMJID", "ALI",
-    "SOHAIL", "SHOAIB", "IQBAL", "ATIF", "FAQIR", "FAROOQ", "JAVAID", "AMRAN", "BILAL", "ZEESHAN"
+    "SOHAIL", "SHOAIB", "IQBAL", "ATIF", "FAQEER", "FAROOQ", "JAVAID", "AMRAN", "BILAL", "ZEESHAN"
 ].map(u => ({ username: u.trim(), password: "123" }));
 
 let unlockCode = null;
