@@ -1403,6 +1403,47 @@ footer {
   box-shadow: 0 14px 34px rgba(15, 23, 42, .18);
 }
 
+.app-toast-stack {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 12000;
+  display: grid;
+  gap: 10px;
+  width: min(360px, calc(100vw - 24px));
+}
+
+.app-toast {
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .24);
+  background: #0f172a;
+  color: #ffffff;
+  padding: 13px 14px;
+  box-shadow: 0 18px 45px rgba(2, 6, 23, .26);
+  font-weight: 800;
+  line-height: 1.35;
+  transform: translateX(110%);
+  opacity: 0;
+  transition: transform .25s ease, opacity .25s ease;
+}
+
+.app-toast.show {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.app-toast.success {
+  background: linear-gradient(135deg, #047857, #0f766e);
+}
+
+.app-toast.error {
+  background: linear-gradient(135deg, #b91c1c, #7f1d1d);
+}
+
+.app-toast.info {
+  background: linear-gradient(135deg, #1d4ed8, #0f172a);
+}
+
 @media (max-width: 767px) {
   .content-area {
     padding: 12px !important;
