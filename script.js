@@ -1,6 +1,6 @@
 const demoUsers = [
    "ADMIN", "ALL", "KHALID", "ASIF", "MUZAMMIL", "HAIDER", "IMRAN", "WAQAS", "MURTAZA", "YOUSAF", "AMJID", "ALI",
-    "SOHAIL", "SHOAIB", "IQBAL", "ATIF", "FAQEER", "FAROOQ", "JAVAID", "AMRAN", "BILAL", "ZEESHAN"
+    "SOHAIL", "SHOAIB", "IQBAL", "ATIF", "FAQIR", "FAROOQ", "JAVAID", "AMRAN", "BILAL", "ZEESHAN"
 ].map(u => ({ username: u.trim(), password: "123" }));
 
 let unlockCode = null;
@@ -123,8 +123,14 @@ function processCSV(text, onDone) {
         Date: row[13] || "",
         ItemRate: parseFloat((row[14] || "0").replace(/,/g, "")) || 0
     });
-    const mappedAllRows = rows.map(mapMainRow);
-    const mapped = filtered.map(mapMainRow);
+    let mappedAllRows = rows.map(mapMainRow);
+    let mapped = filtered.map(mapMainRow);
+    const previousAllRows = JSON.parse(localStorage.getItem("excelDataAll") || "[]");
+    const previousVisibleRows = JSON.parse(localStorage.getItem("excelData") || "[]");
+    if (typeof mergeCsvRowsKeepTargets === "function") {
+        mappedAllRows = mergeCsvRowsKeepTargets(previousAllRows, mappedAllRows);
+        mapped = filterUser ? filterRowsForUser(mappedAllRows, filterUser) : mergeCsvRowsKeepTargets(previousVisibleRows, mapped);
+    }
 
     console.log("✅ Total CSV Rows:", lines.length);
     console.log("✅ Filtered Rows (after user filter):", filtered.length);
@@ -308,7 +314,7 @@ async function deleteUserData(userToDelete) {
 
     const isAllDelete = userToDelete === "ALL";
     const confirmText = isAllDelete
-        ? "Are you sure you want to DELETE ALL central Firebase upload data? User wise data will remain unless you delete each user."
+        ? "Are you sure you want to DELETE ALL Firebase data for every user/booker? This will delete central data, user wise data, and My Sale data."
         : `Are you sure you want to DELETE all Firebase data of: ${userToDelete}?`;
 
     if (!confirm(confirmText)) {
@@ -318,9 +324,8 @@ async function deleteUserData(userToDelete) {
     try {
         const paths = isAllDelete
             ? [
-                `${DATABASE_URL}/csvUploads/ALL.json`,
-                `${DATABASE_URL}/mySales/ALL.json`,
-                `${DATABASE_URL}/csvUploads/ALL/mySales.json`
+                `${DATABASE_URL}/csvUploads.json`,
+                `${DATABASE_URL}/mySales.json`
             ]
             : [
                 `${DATABASE_URL}/csvUploads/${userToDelete}.json`,
@@ -348,10 +353,10 @@ async function deleteUserData(userToDelete) {
             renderInvoiceTable();
             renderMySaleTable?.();
         }
-        alert(isAllDelete ? "Deleted ALL central Firebase upload data" : `Deleted Firebase data of ${userToDelete}`);
+        showAppNotification(isAllDelete ? "All Firebase data deleted successfully." : `Firebase data deleted for ${userToDelete}.`, "success");
     } catch (err) {
         console.error("Delete error:", err);
-        alert("Error deleting data from Firebase!");
+        showAppNotification("Error deleting data from Firebase.", "error");
     }
 }
 
@@ -1364,6 +1369,63 @@ function addInvoice() {
     errorDiv.classList.add('hidden');
     renderInvoiceTable();
     renderAllocationTables();
+    syncManualAchievementToFirebase(newInvoice, target).catch(err => {
+        console.error('Manual achievement Firebase sync failed:', err);
+    });
+}
+
+async function syncManualAchievementToFirebase(invoice, targetQty) {
+    if (!invoice || !invoice.customerCode || !invoice.item) return;
+    const cleanUser = (getActiveDataUser() || getLoggedUser() || "").toString().trim().toUpperCase();
+    const rowUser = cleanUser && cleanUser !== "ALL" && cleanUser !== "ADMIN"
+        ? cleanUser
+        : (getLoggedUser() || "").toString().trim().toUpperCase();
+    const today = new Date().toISOString().slice(0, 10);
+    let updated = false;
+
+    excelData = (excelData || []).map(row => {
+        const sameCustomer = (row.CustomerCode || "").toString().trim().toUpperCase() === invoice.customerCode;
+        const sameItem = (row.Item1 || "").toString().trim().toUpperCase() === invoice.item;
+        const users = [row.User1, row.User2].map(user => (user || "").toString().trim().toUpperCase()).filter(Boolean);
+        const sameUser = !rowUser || rowUser === "ADMIN" || users.length === 0 || users.includes(rowUser);
+        if (!updated && sameCustomer && sameItem && sameUser) {
+            updated = true;
+            return {
+                ...row,
+                City: row.City || invoice.city || "",
+                Customer: row.Customer || invoice.customer || "",
+                Target1: Number(row.Target1 || targetQty || 0),
+                Achieve1: Number(row.Achieve1 || 0) + Number(invoice.quantity || 0),
+                User1: row.User1 || rowUser,
+                Date: today
+            };
+        }
+        return row;
+    });
+
+    if (!updated) {
+        excelData.push({
+            City: invoice.city || "",
+            CustomerCode: invoice.customerCode,
+            Customer: invoice.customer || "",
+            Item1: invoice.item,
+            Target1: Number(targetQty || 0),
+            Achieve1: Number(invoice.quantity || 0),
+            User1: rowUser,
+            User2: "",
+            DealQty: 0,
+            DealBonus: 0,
+            SummaryNumber: "",
+            CompanyName: "",
+            Value: 0,
+            Date: today,
+            ItemRate: 0
+        });
+    }
+
+    localStorage.setItem("excelData", JSON.stringify(excelData));
+    if (cleanUser === "ALL") localStorage.setItem("excelDataAll", JSON.stringify(excelData));
+    if (typeof saveCSVToFirebase === "function") await saveCSVToFirebase(excelData);
 }
 
 function renderInvoiceTable() {
@@ -3494,6 +3556,17 @@ function getSaleRowsFromMainRows(rows) {
   });
   return Object.values(saleMap);
 }
+function mergeSaleRecordArrays(...groups) {
+  const byKey = {};
+  groups.flat().map(normalizeSaleRecord).forEach(row => {
+    const user = (row.user || "").toString().trim().toUpperCase();
+    if (!user || user === "ADMIN" || user === "ALL") return;
+    if (!row.summary && !row.company && !row.value) return;
+    const key = `${user}|${row.date}|${row.summary}|${row.company}`;
+    byKey[key] = row;
+  });
+  return Object.values(byKey);
+}
 async function saveMainCsvSalesToFirebase(rows, uploadedBy) {
   const saleRows = getSaleRowsFromMainRows(rows);
   if (!saleRows.length) return { rows: 0, users: 0 };
@@ -3583,7 +3656,14 @@ async function syncMySaleFromFirebase(onDone, forceUser = null) {
     if (!currentUser || typeof DATABASE_URL !== "string" || !DATABASE_URL) { renderMySaleTable(); if(onDone) onDone(mySaleData); return; }
     const targetUser = currentUser === "ADMIN" ? (forceUser || getActiveDataUser() || currentUser).toString().trim().toUpperCase() : currentUser;
     if (currentUser === "ADMIN" && targetUser === "ALL") {
-      mySaleData = await fetchAllMySaleRows();
+      const firebaseSales = await fetchAllMySaleRows();
+      const localAllRows = [
+        ...(JSON.parse(localStorage.getItem("excelDataAll") || "[]") || []),
+        ...(JSON.parse(localStorage.getItem("excelData") || "[]") || []),
+        ...(Array.isArray(excelData) ? excelData : [])
+      ];
+      const localSales = getSaleRowsFromMainRows(localAllRows);
+      mySaleData = mergeSaleRecordArrays(firebaseSales, localSales);
       localStorage.setItem("mySaleData", JSON.stringify(mySaleData));
     } else {
       const json = await fetchMySalePayloadForUser(targetUser);
@@ -3608,6 +3688,7 @@ function addManualSale() {
   const record = normalizeSaleRecord({ summary, company, value, date });
   upsertLocalSaleRecords([record]);
   saveMySaleToFirebase();
+  showAppNotification("Manual sale saved successfully.", "success");
   ["manualSaleNumber", "manualSaleCompany", "manualSaleValue"].forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
 }
 function normalizeSaleHeader(value) { return (value || "").toString().trim().toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, ""); }
@@ -3670,7 +3751,7 @@ function processSaleCsvRows(rows) {
 function handleSaleCsvFileChange(e) {
   const file = e?.target?.files?.[0];
   if (!file) return;
-  Papa.parse(file, { skipEmptyLines: true, complete: function(results) { const records = processSaleCsvRows(results.data || []); addSaleUploadHistory(file.name, records || []); }, error: function(err){ alert("CSV parse error: " + err.message); } });
+  Papa.parse(file, { skipEmptyLines: true, complete: function(results) { const records = processSaleCsvRows(results.data || []); addSaleUploadHistory(file.name, records || []); showAppNotification("My Sale CSV uploaded successfully.", "success"); }, error: function(err){ showAppNotification("CSV parse error: " + err.message, "error"); } });
   e.target.value = "";
 }
 function resetMySale() {
@@ -3688,7 +3769,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const nav = document.getElementById("navMySale") || document.getElementById("navMysale");
   if (nav) { nav.removeEventListener("click", showMySalePage); nav.addEventListener("click", showMySalePage); }
   const refreshBtn = document.getElementById("refreshMySale");
-  if (refreshBtn) refreshBtn.addEventListener("click", () => syncMySaleFromFirebase(() => { renderSaleUploadHistory(); alert("My Sale data refreshed!"); }));
+  if (refreshBtn) refreshBtn.addEventListener("click", () => syncMySaleFromFirebase(() => { renderSaleUploadHistory(); showAppNotification("My Sale data refreshed.", "success"); }));
   renderMySaleTable();
   renderSaleUploadHistory();
 });
@@ -3734,7 +3815,7 @@ function uploadToFirebase(data) {
     body: JSON.stringify(data)
   })
   .then(res => res.json())
-  .then(() => alert("✅ Data uploaded to Firebase!"))
+  .then(() => showAppNotification("Data uploaded to Firebase.", "success"))
   .catch(console.error);
 }
 document.getElementById('excelFile')?.addEventListener('change', (event) => {
@@ -3964,19 +4045,80 @@ async function putCsvRowsForUser(user, rows, uploadedBy) {
   return true;
 }
 
+function getMainRowMergeKey(row) {
+  const clean = normalizeMainRow(row);
+  const users = getRowUsers(clean).join(",");
+  return `${clean.CustomerCode}|${clean.Item1}|${users}`;
+}
+
+function mergeCsvRowsKeepTargets(existingRows, incomingRows) {
+  const merged = {};
+  (existingRows || []).map(normalizeMainRow).forEach(row => {
+    const key = getMainRowMergeKey(row);
+    if (key.replace(/\|/g, "")) merged[key] = row;
+  });
+
+  (incomingRows || []).map(normalizeMainRow).forEach(row => {
+    const key = getMainRowMergeKey(row);
+    if (!key.replace(/\|/g, "")) return;
+    const existing = merged[key];
+    if (existing) {
+      merged[key] = {
+        ...existing,
+        City: row.City || existing.City,
+        Customer: row.Customer || existing.Customer,
+        Target1: row.Target1 > 0 ? row.Target1 : (Number(existing.Target1) || 0),
+        Achieve1: row.Achieve1,
+        User1: row.User1 || existing.User1,
+        User2: row.User2 || existing.User2,
+        DealQty: row.DealQty,
+        DealBonus: row.DealBonus,
+        SummaryNumber: row.SummaryNumber || existing.SummaryNumber,
+        CompanyName: row.CompanyName || existing.CompanyName,
+        Value: row.Value,
+        Date: row.Date || existing.Date,
+        ItemRate: row.ItemRate || existing.ItemRate || 0
+      };
+    } else {
+      merged[key] = row;
+    }
+  });
+  return Object.values(merged);
+}
+
+async function fetchExistingCsvRowsForUser(user) {
+  try {
+    if (typeof DATABASE_URL !== "string" || !DATABASE_URL) return [];
+    const cleanUser = (user || "").toString().trim().toUpperCase();
+    if (!cleanUser) return [];
+    const res = await fetch(`${DATABASE_URL}/csvUploads/${cleanUser}/latest.json`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return Array.isArray(json?.rows) ? json.rows : [];
+  } catch (err) {
+    console.warn("Existing CSV rows fetch skipped:", err);
+    return [];
+  }
+}
+
 async function saveAdminFullCsvToFirebase(rows, loggedUser) {
   const cleanRows = rows.map(normalizeMainRow);
-  await putCsvRowsForUser("ALL", cleanRows, loggedUser);
-  const users = getUsersFromRows(cleanRows);
+  const existingAllRows = await fetchExistingCsvRowsForUser("ALL");
+  const mergedAllRows = mergeCsvRowsKeepTargets(existingAllRows, cleanRows);
+  await putCsvRowsForUser("ALL", mergedAllRows, loggedUser);
+  const users = getUsersFromRows(mergedAllRows);
   for (const user of users) {
-    await putCsvRowsForUser(user, filterRowsForUser(cleanRows, user), loggedUser);
+    const userIncoming = filterRowsForUser(cleanRows, user);
+    const userExisting = await fetchExistingCsvRowsForUser(user);
+    const userMerged = mergeCsvRowsKeepTargets(userExisting, userIncoming);
+    await putCsvRowsForUser(user, userMerged, loggedUser);
   }
-  await saveMainCsvSalesToFirebase(cleanRows, loggedUser);
-  localStorage.setItem("excelDataAll", JSON.stringify(cleanRows));
-  localStorage.setItem("excelData", JSON.stringify(cleanRows));
+  await saveMainCsvSalesToFirebase(mergedAllRows, loggedUser);
+  localStorage.setItem("excelDataAll", JSON.stringify(mergedAllRows));
+  localStorage.setItem("excelData", JSON.stringify(mergedAllRows));
   localStorage.setItem("lastCsvUploadRef", `${DATABASE_URL}/csvUploads/ALL/latest.json`);
-  console.log(`Central CSV uploaded: ${cleanRows.length} rows, ${users.length} user copies.`);
-  return { rows: cleanRows.length, users: users.length };
+  console.log(`Central CSV uploaded/merged: ${mergedAllRows.length} rows, ${users.length} user copies.`);
+  return { rows: mergedAllRows.length, users: users.length };
 }
 
 // ----------------- SAVE (MERGE MODE -> keeps old Target1) -----------------
@@ -4021,67 +4163,7 @@ async function saveCSVToFirebase(data) {
       console.warn("ℹ️ saveCSVToFirebase: No existing latest found or fetch error.", err);
     }
 
-    // 2) Build a lookup from existing by key (CustomerCode|Item1)
-    const lookup = {};
-    existingRows.forEach(r => {
-      const key = ((r.CustomerCode || "") + "|" + (r.Item1 || "")).trim().toUpperCase();
-      lookup[key] = r;
-    });
-
-    // 3) Merge: for each new row update Achieve/Value/Deal fields but keep Target1 if new target is 0
-    const merged = Object.assign({}, lookup); // key -> row
-    data.forEach(newRow => {
-      const code = (newRow.CustomerCode || "").trim().toUpperCase();
-      const item = (newRow.Item1 || "").trim().toUpperCase();
-      const key = (code + "|" + item).trim().toUpperCase();
-      const cleanNew = {
-        City: newRow.City || "",
-        CustomerCode: (newRow.CustomerCode || "").trim().toUpperCase(),
-        Customer: newRow.Customer || "",
-        Item1: (newRow.Item1 || "").trim().toUpperCase(),
-        Target1: parseSafeInt(newRow.Target1),
-        Achieve1: parseSafeInt(newRow.Achieve1),
-        User1: newRow.User1 || "",
-        User2: newRow.User2 || "",
-        DealQty: parseSafeInt(newRow.DealQty),
-        DealBonus: parseSafeInt(newRow.DealBonus),
-        SummaryNumber: newRow.SummaryNumber || "",
-        CompanyName: newRow.CompanyName || "",
-        Value: parseSafeFloat(newRow.Value),
-        Date: newRow.Date || "",
-        ItemRate: parseSafeFloat(newRow.ItemRate)
-      };
-
-      if (merged[key]) {
-        // Keep existing target if new target is zero or missing
-        const existing = merged[key];
-        merged[key] = {
-          ...existing,
-          // fields to keep from existing if new is empty/zero
-          Target1: cleanNew.Target1 > 0 ? cleanNew.Target1 : (parseSafeInt(existing.Target1) || 0),
-          // update Achieve/Value and deal fields to new values (even if 0)
-          Achieve1: cleanNew.Achieve1,
-          Value: cleanNew.Value,
-          DealQty: cleanNew.DealQty,
-          DealBonus: cleanNew.DealBonus,
-          Date: cleanNew.Date || existing.Date || "",
-          ItemRate: cleanNew.ItemRate || existing.ItemRate || 0,
-          // keep general meta fields from either
-          City: cleanNew.City || existing.City,
-          Customer: cleanNew.Customer || existing.Customer,
-          User1: cleanNew.User1 || existing.User1,
-          User2: cleanNew.User2 || existing.User2,
-          SummaryNumber: cleanNew.SummaryNumber || existing.SummaryNumber,
-          CompanyName: cleanNew.CompanyName || existing.CompanyName,
-        };
-      } else {
-        // New entry
-        merged[key] = cleanNew;
-      }
-    });
-
-    // Convert merged lookup back to array
-    const mergedArray = Object.values(merged);
+    const mergedArray = mergeCsvRowsKeepTargets(existingRows, data);
 
     // 4) Upload into latest.json (overwrite safely)
     const payload = {
@@ -4098,13 +4180,14 @@ async function saveCSVToFirebase(data) {
 
     if (putRes.ok) {
       console.log(`✅ saveCSVToFirebase: Uploaded ${mergedArray.length} rows to ${url}`);
+      showAppNotification("CSV data uploaded successfully.", "success");
       localStorage.setItem("excelData", JSON.stringify(mergedArray));
       // also keep lastCsvUploadRef for debugging
       localStorage.setItem("lastCsvUploadRef", url);
     } else {
       console.error("❌ saveCSVToFirebase: Upload failed:", putRes.status);
       // fallback: save locally
-      localStorage.setItem("excelData", JSON.stringify(Object.values(merged)));
+      localStorage.setItem("excelData", JSON.stringify(mergedArray));
     }
   } catch (err) {
     console.error("❌ saveCSVToFirebase Error:", err);
@@ -4343,24 +4426,24 @@ function syncSelectedUser() {
   // Call sync with override only when ADMIN selected someone
   const currentUser = (getLoggedUser() || '').toString().trim().toUpperCase();
   if (currentUser === 'ADMIN' && selected) {
-    syncUserDataFromFirebase(() => {
+    syncUserDataFromFirebase(async () => {
+      await syncMySaleFromFirebase?.(null, selected);
       if (btn) {
-        alert('✅ Data synced for ' + selected.toUpperCase());
+        showAppNotification('Data synced successfully for ' + selected.toUpperCase() + '.', 'success');
         btn.innerText = "🔄 Sync Data";
         btn.disabled = false;
         renderInvoiceTable();
-        syncMySaleFromFirebase?.(null, selected);
       }
     }, selected);
   } else {
     // normal sync (no override)
-    syncUserDataFromFirebase(() => {
+    syncUserDataFromFirebase(async () => {
+      await syncMySaleFromFirebase?.();
       if (btn) {
-        alert('✅ Data synced successfully!');
+        showAppNotification('Data synced successfully.', 'success');
         btn.innerText = "🔄 Sync Data";
         btn.disabled = false;
         renderInvoiceTable();
-        syncMySaleFromFirebase?.();
       }
     });
   }
@@ -4444,6 +4527,25 @@ function showLegalPage(page) {
 
 function closeLegalPage() {
   document.getElementById("legalModal")?.classList.add("hidden");
+}
+
+function showAppNotification(message, type = "success") {
+  let stack = document.getElementById("appToastStack");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.id = "appToastStack";
+    stack.className = "app-toast-stack";
+    document.body.appendChild(stack);
+  }
+  const toast = document.createElement("div");
+  toast.className = `app-toast ${type}`;
+  toast.textContent = message;
+  stack.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 260);
+  }, 3200);
 }
 
 
