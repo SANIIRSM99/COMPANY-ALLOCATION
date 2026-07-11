@@ -3329,43 +3329,6 @@ function toggleSections() {
 
 let mySaleData = JSON.parse(localStorage.getItem("mySaleData") || "[]");
 
-const MANUAL_SALE_COMPANIES = {
-  "1": "SMITH KLINE GSK",
-  "3": "SANOFI",
-  "4": "GALAXY",
-  "5": "ABBOTT LAB",
-  "6": "HILTON",
-  "8": "HIGHNOON",
-  "10": "SOLITE HEALTH CARE",
-  "11": "OTSUKA",
-  "12": "ABBOTT INST",
-  "14": "GSK CONSUMER",
-  "15": "CARE"
-};
-
-function getManualSaleCompanyName(code) {
-  const cleanCode = (code || "").toString().trim();
-  if (!cleanCode) return "";
-  if (MANUAL_SALE_COMPANIES[cleanCode]) return MANUAL_SALE_COMPANIES[cleanCode];
-  const row = (excelData || []).find(item => String(item.SummaryNumber || item.SUMMERY || item.Summary || "").trim() === cleanCode);
-  return row ? (row.CompanyName || row.Company || row.COMPANY || "") : "";
-}
-
-function syncManualSaleCompanyInput() {
-  const numberInput = document.getElementById("manualSaleNumber");
-  const companyInput = document.getElementById("manualSaleCompany");
-  if (!numberInput || !companyInput) return;
-  companyInput.value = getManualSaleCompanyName(numberInput.value);
-}
-
-function setupManualSaleCompanyAutoFill() {
-  const numberInput = document.getElementById("manualSaleNumber");
-  if (!numberInput || numberInput.dataset.companyAutofillReady === "1") return;
-  numberInput.dataset.companyAutofillReady = "1";
-  numberInput.addEventListener("input", syncManualSaleCompanyInput);
-  syncManualSaleCompanyInput();
-}
-
 function showMySalePage() {
   const pages = ["mainPage", "allocationPage", "doneTargetPage", "bonusPage"];
   pages.forEach(id => document.getElementById(id)?.classList.add("hidden"));
@@ -3379,7 +3342,6 @@ function showMySalePage() {
   if (nav) nav.classList.add("bg-yellow-600","text-white");
   syncMySaleFromFirebase();
   renderSaleUploadHistory();
-  setupManualSaleCompanyAutoFill();
 }
 
 function renderMySaleTable() {
@@ -3719,7 +3681,6 @@ async function syncMySaleFromFirebase(onDone, forceUser = null) {
 }
 function addManualSale() {
   const summary = document.getElementById("manualSaleNumber")?.value || "";
-  syncManualSaleCompanyInput();
   const company = document.getElementById("manualSaleCompany")?.value || "";
   const value = Number(document.getElementById("manualSaleValue")?.value || 0);
   const date = document.getElementById("manualSaleDate")?.value || new Date().toISOString().slice(0, 10);
@@ -4087,14 +4048,7 @@ async function putCsvRowsForUser(user, rows, uploadedBy) {
 function getMainRowMergeKey(row) {
   const clean = normalizeMainRow(row);
   const users = getRowUsers(clean).join(",");
-  return [
-    clean.CustomerCode,
-    clean.Item1,
-    clean.SummaryNumber || "",
-    clean.CompanyName || "",
-    clean.Date || "",
-    users
-  ].join("|").toUpperCase();
+  return `${clean.CustomerCode}|${clean.Item1}|${users}`;
 }
 
 function mergeCsvRowsKeepTargets(existingRows, incomingRows) {
