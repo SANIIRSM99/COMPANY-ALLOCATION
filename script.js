@@ -1,6 +1,6 @@
 const demoUsers = [
    "ADMIN", "ALL", "KHALID", "ASIF", "MUZAMMIL", "HAIDER", "IMRAN", "WAQAS", "MURTAZA", "YOUSAF", "AMJID", "ALI",
-    "SOHAIL", "SHOAIB", "IQBAL", "ATIF", "FAQIR", "FAROOQ", "JAVAID", "AMRAN", "BILAL", "ZEESHAN"
+    "SOHAIL", "SHOAIB", "IQBAL", "ATIF", "FAQEER", "FAROOQ", "JAVAID", "AMRAN", "BILAL", "ZEESHAN"
 ].map(u => ({ username: u.trim(), password: "123" }));
 
 let unlockCode = null;
@@ -1458,8 +1458,8 @@ function renderInvoiceTable() {
                                 <option value="all">🌍 All</option>
                                 <option value="green">✅ Completed</option>
                                 <option value="cityWiseGreen">City Wise Completed</option>
-                                <option value="red">🔴 Red Zone</option>
-                                <option value="cityWiseRed">City Wise Red Zone</option>
+                                <option value="red">🔴 Extra Allocation</option>
+                                <option value="cityWiseRed">City Wise Extra Allocation</option>
                                 <option value="normal">⏳ Pending</option>
                                 <option value="zeroTarget">Zero Target</option>
                                 <option value="nonProductive">🚫 Non Productive</option>
