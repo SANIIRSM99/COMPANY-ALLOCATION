@@ -323,7 +323,7 @@ async function deleteUserData(userToDelete) {
 
     const isAllDelete = userToDelete === "ALL";
     const confirmText = isAllDelete
-        ? "Are you sure you want to DELETE ALL Firebase data for every user/booker? This will delete central data, user wise data, and My Sale data."
+        ? "Are you sure you want to DELETE ALL central Firebase upload data? User wise data will remain unless you delete each user."
         : `Are you sure you want to DELETE all Firebase data of: ${userToDelete}?`;
 
     if (!confirm(confirmText)) {
@@ -333,8 +333,9 @@ async function deleteUserData(userToDelete) {
     try {
         const paths = isAllDelete
             ? [
-                `${DATABASE_URL}/csvUploads.json`,
-                `${DATABASE_URL}/mySales.json`
+                `${DATABASE_URL}/csvUploads/ALL.json`,
+                `${DATABASE_URL}/mySales/ALL.json`,
+                `${DATABASE_URL}/csvUploads/ALL/mySales.json`
             ]
             : [
                 `${DATABASE_URL}/csvUploads/${userToDelete}.json`,
@@ -362,10 +363,10 @@ async function deleteUserData(userToDelete) {
             renderInvoiceTable();
             renderMySaleTable?.();
         }
-        showAppNotification(isAllDelete ? "All Firebase data deleted successfully." : `Firebase data deleted for ${userToDelete}.`, "success");
+     showAppNotification(isAllDelete ? "All Firebase data deleted successfully." : `Firebase data deleted for ${userToDelete}.`, "success");
     } catch (err) {
         console.error("Delete error:", err);
-        showAppNotification("Error deleting data from Firebase.", "error");
+        showAppNotification("deleting data from Firebase.", "error");
     }
 }
 
@@ -1458,8 +1459,8 @@ function renderInvoiceTable() {
                                 <option value="all">🌍 All</option>
                                 <option value="green">✅ Completed</option>
                                 <option value="cityWiseGreen">City Wise Completed</option>
-                                <option value="red">🔴 Extra Allocation</option>
-                                <option value="cityWiseRed">City Wise Extra Allocation</option>
+                                <option value="red">🔴 Red Zone</option>
+                                <option value="cityWiseRed">City Wise Red Zone</option>
                                 <option value="normal">⏳ Pending</option>
                                 <option value="zeroTarget">Zero Target</option>
                                 <option value="nonProductive">🚫 Non Productive</option>
